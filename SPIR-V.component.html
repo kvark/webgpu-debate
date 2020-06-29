@@ -1,0 +1,511 @@
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/@argdown/web-components/dist/argdown-map.css"><script src="https://cdn.jsdelivr.net/npm/@webcomponents/webcomponentsjs/webcomponents-bundle.js" type="module"></script><script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@argdown/web-components/dist/argdown-map.js"></script><figure  role="group" class="argdown-figure"><argdown-map      initial-view="map"><div slot="source" class=""><pre class="language-argdown"><code class="language-argdown"><span class="hljs-section">## WebGPU shading language</span>
+<span class="hljs-comment">&lt;!--
+Initial requirements for WebGPU:
+- can&#x27;t have shader operations with undefined behavior.
+- needs to be strictly specified.
+- needs to have predictable and portable performance.
+- needs to  be faithfully translatable to SPIR-V, HLSL/DXIR, and MSL.
+
+Relevant issues:
+  - [#42](https://github.com/gpuweb/gpuweb/issues/42) - for human-writable
+  - [#43](https://github.com/gpuweb/gpuweb/issues/43) - against binary
+  - [#44](https://github.com/gpuweb/gpuweb/issues/44) - for SPIR-V
+  - [#692](https://github.com/gpuweb/gpuweb/issues/692) - preserving developers trust
+--&gt;</span>
+
+<span class="hljs-statement-title">[SPIR-V]:</span> We should define a safe subset of SPIR-V and
+[<span class="hljs-string">accept it directly</span>](<span class="hljs-link">https://github.com/gpuweb/gpuweb/issues/44</span>) in WebGPU implementations.
+
+<span class="hljs-argument-title">&lt;SPIR-V is too low level&gt;:</span> SPIR-V is meant to be fed into drivers,
+while WebGPU needs to be able to generate HLSL and MSL, which are higher level.
+This makes some translation paths inefficient and awkward to implement.
+<span class="hljs-support">  +</span> it has a lot of instructions, some with [<span class="hljs-string">undefined behavior</span>](<span class="hljs-link">https://github.com/gpuweb/gpuweb/issues/34</span>).
+<span class="hljs-support">  +</span> it represents control flow as a graph (CFG),
+    which forces us to recover the structure when generating HLSL and MSL.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+
+<span class="hljs-statement-title">[Text formats are better on the Web]:</span> Using a text human readable format is more idiomatic to the Web.
+<span class="hljs-support">  +</span> JavaScript is the language of the Web.
+<span class="hljs-support">  +</span> Being able to see the web source and tinker with it
+    was one of the principles of the Web as it was emerging,
+    and it&#x27;s still important today.
+<span class="hljs-attack">  -</span> WASM is the new form of the language of the Web, and it&#x27;s binary.
+<span class="hljs-attack">  -</span> Parsing a text format is more complex and takes more time than parsing a SPIR-V binary.
+<span class="hljs-attack">    -</span> shader parsing is only a couple of % for the time total spent in a pipeline creation.
+      Most time is still spent within the driver.
+<span class="hljs-attack">  -</span> Text is more verbose and redundant, from the point of view of the data transferred from the client.
+<span class="hljs-attack">    -</span> there is no indication that text-based shaders are going to be larger than SPIR-V,
+      which is known for its big size. Compressed, text should be close in size, if not smaller.
+<span class="hljs-attack">  -</span> Text format is more complex than binary
+<span class="hljs-attack">    -</span> complexity is independent of the form. There can be complex binary languages and simple text ones.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+
+<span class="hljs-argument-title">&lt;SPIR-V can&#x27;t be used in the tests and examples&gt;:</span> If we can&#x27;t write it,
+we&#x27;d be writing tests and examples in another language, which would make WebGPU less strong API.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+
+<span class="hljs-argument-title">&lt;SPIR-V is developed indepenently&gt;:</span> SPIR-V is developed by a working group inside
+Khronos, which may bring tension to using it.
+
+<span class="hljs-argument-statement-nr">(1)</span> Khronos working group has different constraints,
+it doesn&#x27;t have any obligation to make SPIR-V changes that WebGPU would need.
+<span class="hljs-inference">----</span>
+<span class="hljs-argument-statement-nr">(2)</span> It is likely that WebGPU would need to have different versions of the same
+functionality present in core SPIR-V, like the instructions for ray tracing.
+<span class="hljs-inference">----</span>
+<span class="hljs-argument-statement-nr">(3)</span> That will effectively lead to the forking SPIR-V
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+
+<span class="hljs-argument-title">&lt;Nobody wants yet another shading language&gt;:</span> we already have a diversity of shading languages,
+as well as huge shader code bases. Adding support for another one is something nobody is excited about.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+
+<span class="hljs-argument-title">&lt;Parsing text is prone to errors&gt;:</span> there is a large class of parsing/processing errors that doesn&#x27;t exist in a binary format like SPIR-V/
+<span class="hljs-support">  +</span> Angle team has experience with WebGL shading language, there is a impressive [<span class="hljs-string">bug list</span>](<span class="hljs-link">https://docs.google.com/spreadsheets/d/1bjfZJcvGPI4M6Df5HC8BPQXbl847RpfsFKw6SI6_T30/edit</span>)
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+
+<span class="hljs-argument-title">&lt;SPIR-V is well-specified&gt;:</span> It&#x27;s an existing modern shading language
+that has a very detailed specification and a good conformance test suite.
+<span class="hljs-attack">  -</span> SPIR-V isn&#x27;t tested directly, but rather via GLSL
+<span class="hljs-attack">  -</span> It&#x27;s specified in 2 different documents: language itself and the execution environment.
+    Sometimes it&#x27;s not easy to figure out which of them is responsible for describing a particular behavior.
+<span class="hljs-support">  +</span> It has a memory model
+<span class="hljs-attack">    -</span> WebGPU can borrow the memory model without taking the full SPIR-V
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+
+<span class="hljs-argument-title">&lt;SPIR-V has a large ecosystem&gt;:</span> Leveraging this ecosystem can help WebGPU to succeed.
+<span class="hljs-support">  +</span> There are libraries for reflecting SPIR-V in popular languages: [<span class="hljs-string">C++</span>](<span class="hljs-link">https://github.com/KhronosGroup/SPIRV-Tools</span>), [<span class="hljs-string">Rust</span>](<span class="hljs-link">https://crates.io/crates/rspirv</span>), [<span class="hljs-string">Go</span>](<span class="hljs-link">https://github.com/vulkan-go/spv</span>), [<span class="hljs-string">Python</span>](<span class="hljs-link">https://github.com/kristerw/spirv-tools</span>) etc.
+<span class="hljs-support">  +</span> There is both an optimizer and a validator in SPIRV-Tools.
+<span class="hljs-support">  +</span> [<span class="hljs-string">SPIRV-Cross</span>](<span class="hljs-link">https://github.com/KhronosGroup/SPIRV-Cross</span>) exists, it can translate SPIR-V into MSL, HLSL, and GLSL
+<span class="hljs-attack">    -</span> After inspecting it and experimenting with it, both Google and Mozilla decided to not use SPIRV-Cross.
+      It&#x27;s hard to bring it into shape that will be suitable for shipping in a browser.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[SPIR-V]</span>
+</code></pre></div><div slot="map">
+<!-- Generated by graphviz version 2.40.1 (20161225.0304)
+ -->
+<!-- Title: Argument Map Pages: 1 -->
+<svg width="720pt" height="108pt"
+ viewBox="0.00 0.00 720.00 108.31" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(.2209 .2209) rotate(0) translate(4 486.4)">
+<title>Argument Map</title>
+<g id="clust1" class="cluster">
+<title>cluster_1</title>
+<polygon fill="#dadada" stroke="#dadada" points="8,-8 8,-474.4 3244,-474.4 3244,-8 8,-8"/>
+<text text-anchor="start" x="1551.6432" y="-459.6" font-family="arial" font-size="12.00" fill="#000000">WebGPU shading language</text>
+</g>
+<!-- n0 -->
+<g id="node1" class="node">
+<title>n0</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M978,-444C978,-444 806,-444 806,-444 800,-444 794,-438 794,-432 794,-432 794,-392 794,-392 794,-386 800,-380 806,-380 806,-380 978,-380 978,-380 984,-380 990,-386 990,-392 990,-392 990,-432 990,-432 990,-438 984,-444 978,-444"/>
+<text text-anchor="start" x="875.333" y="-430" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">SPIR&#45;V</text>
+<text text-anchor="start" x="816.6945" y="-413" font-family="arial" font-size="10.00" fill="#000000">We should define a safe subset of</text>
+<text text-anchor="start" x="821.7095" y="-401" font-family="arial" font-size="10.00" fill="#000000"> SPIR&#45;V and accept it directly in</text>
+<text text-anchor="start" x="830.3265" y="-389" font-family="arial" font-size="10.00" fill="#000000"> WebGPU implementations.</text>
+</g>
+<!-- n1 -->
+<g id="node2" class="node">
+<title>n1</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M3224,-184C3224,-184 3052,-184 3052,-184 3046,-184 3040,-178 3040,-172 3040,-172 3040,-160 3040,-160 3040,-154 3046,-148 3052,-148 3052,-148 3224,-148 3224,-148 3230,-148 3236,-154 3236,-160 3236,-160 3236,-172 3236,-172 3236,-178 3230,-184 3224,-184"/>
+<text text-anchor="start" x="3057.707" y="-169" font-family="arial" font-size="10.00" fill="#000000">it has a lot of instructions, some with</text>
+<text text-anchor="start" x="3092.7045" y="-157" font-family="arial" font-size="10.00" fill="#000000"> undefined behavior.</text>
+</g>
+<!-- n22 -->
+<g id="node23" class="node">
+<title>n22</title>
+<path fill="#1b9e77" stroke="#000000" d="M3002,-344C3002,-344 2830,-344 2830,-344 2824,-344 2818,-338 2818,-332 2818,-332 2818,-256 2818,-256 2818,-250 2824,-244 2830,-244 2830,-244 3002,-244 3002,-244 3008,-244 3014,-250 3014,-256 3014,-256 3014,-332 3014,-332 3014,-338 3008,-344 3002,-344"/>
+<text text-anchor="start" x="2865.4405" y="-330" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">SPIR&#45;V is too low level</text>
+<text text-anchor="start" x="2830.983" y="-313" font-family="arial" font-size="10.00" fill="#000000">SPIR&#45;V is meant to be fed into drivers,</text>
+<text text-anchor="start" x="2836.811" y="-301" font-family="arial" font-size="10.00" fill="#000000"> while WebGPU needs to be able to</text>
+<text text-anchor="start" x="2835.421" y="-289" font-family="arial" font-size="10.00" fill="#000000"> generate HLSL and MSL, which are</text>
+<text text-anchor="start" x="2847.1025" y="-277" font-family="arial" font-size="10.00" fill="#000000"> higher level. This makes some</text>
+<text text-anchor="start" x="2845.7005" y="-265" font-family="arial" font-size="10.00" fill="#000000"> translation paths inefficient and</text>
+<text text-anchor="start" x="2863.4955" y="-253" font-family="arial" font-size="10.00" fill="#000000"> awkward to implement.</text>
+</g>
+<!-- n1&#45;&gt;n22 -->
+<g id="edge1" class="edge">
+<title>n1&#45;&gt;n22</title>
+<path fill="none" stroke="#00ff00" d="M3106.6637,-184.0678C3081.8679,-198.3645 3045.8624,-219.1244 3011.8026,-238.7625"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="3009.6425,-235.9678 3002.7276,-243.9949 3013.139,-242.032 3009.6425,-235.9678"/>
+</g>
+<!-- n2 -->
+<g id="node3" class="node">
+<title>n2</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M3009.5,-190C3009.5,-190 2822.5,-190 2822.5,-190 2816.5,-190 2810.5,-184 2810.5,-178 2810.5,-178 2810.5,-154 2810.5,-154 2810.5,-148 2816.5,-142 2822.5,-142 2822.5,-142 3009.5,-142 3009.5,-142 3015.5,-142 3021.5,-148 3021.5,-154 3021.5,-154 3021.5,-178 3021.5,-178 3021.5,-184 3015.5,-190 3009.5,-190"/>
+<text text-anchor="start" x="2837.3165" y="-175" font-family="arial" font-size="10.00" fill="#000000">it represents control flow as a graph</text>
+<text text-anchor="start" x="2832.046" y="-163" font-family="arial" font-size="10.00" fill="#000000"> (CFG), which forces us to recover the</text>
+<text text-anchor="start" x="2820.639" y="-151" font-family="arial" font-size="10.00" fill="#000000"> structure when generating HLSL and MSL.</text>
+</g>
+<!-- n2&#45;&gt;n22 -->
+<g id="edge2" class="edge">
+<title>n2&#45;&gt;n22</title>
+<path fill="none" stroke="#00ff00" d="M2916,-190.0758C2916,-202.4917 2916,-218.2453 2916,-233.7092"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="2912.5001,-233.7913 2916,-243.7913 2919.5001,-233.7913 2912.5001,-233.7913"/>
+</g>
+<!-- n3 -->
+<g id="node4" class="node">
+<title>n3</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M2130,-320C2130,-320 1958,-320 1958,-320 1952,-320 1946,-314 1946,-308 1946,-308 1946,-280 1946,-280 1946,-274 1952,-268 1958,-268 1958,-268 2130,-268 2130,-268 2136,-268 2142,-274 2142,-280 2142,-280 2142,-308 2142,-308 2142,-314 2136,-320 2130,-320"/>
+<text text-anchor="start" x="1966.481" y="-306" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Text formats are better on the Web</text>
+<text text-anchor="start" x="1959.537" y="-289" font-family="arial" font-size="10.00" fill="#000000">Using a text human readable format is</text>
+<text text-anchor="start" x="1983.158" y="-277" font-family="arial" font-size="10.00" fill="#000000"> more idiomatic to the Web.</text>
+</g>
+<!-- n3&#45;&gt;n0 -->
+<g id="edge13" class="edge">
+<title>n3&#45;&gt;n0</title>
+<path fill="none" stroke="#ff0000" d="M1945.7811,-304.0606C1731.5644,-326.003 1223.7152,-378.0222 1000.468,-400.8896"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="999.9696,-397.4222 990.3783,-401.9231 1000.6829,-404.3858 999.9696,-397.4222"/>
+</g>
+<!-- n4 -->
+<g id="node5" class="node">
+<title>n4</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M2780,-184C2780,-184 2608,-184 2608,-184 2602,-184 2596,-178 2596,-172 2596,-172 2596,-160 2596,-160 2596,-154 2602,-148 2608,-148 2608,-148 2780,-148 2780,-148 2786,-148 2792,-154 2792,-160 2792,-160 2792,-172 2792,-172 2792,-178 2786,-184 2780,-184"/>
+<text text-anchor="start" x="2608.417" y="-163" font-family="arial" font-size="10.00" fill="#000000">JavaScript is the language of the Web.</text>
+</g>
+<!-- n4&#45;&gt;n3 -->
+<g id="edge4" class="edge">
+<title>n4&#45;&gt;n3</title>
+<path fill="none" stroke="#00ff00" d="M2654.0522,-184.0682C2634.2317,-192.4135 2609.7229,-201.8198 2587,-208 2439.1888,-248.2022 2263.2973,-271.7975 2152.6261,-283.8079"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="2152.0242,-280.3523 2142.4546,-284.899 2152.7709,-287.3123 2152.0242,-280.3523"/>
+</g>
+<!-- n5 -->
+<g id="node6" class="node">
+<title>n5</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M2566,-202C2566,-202 2394,-202 2394,-202 2388,-202 2382,-196 2382,-190 2382,-190 2382,-142 2382,-142 2382,-136 2388,-130 2394,-130 2394,-130 2566,-130 2566,-130 2572,-130 2578,-136 2578,-142 2578,-142 2578,-190 2578,-190 2578,-196 2572,-202 2566,-202"/>
+<text text-anchor="start" x="2396.3565" y="-187" font-family="arial" font-size="10.00" fill="#000000">Being able to see the web source and</text>
+<text text-anchor="start" x="2418.319" y="-175" font-family="arial" font-size="10.00" fill="#000000"> tinker with it was one of the</text>
+<text text-anchor="start" x="2411.099" y="-163" font-family="arial" font-size="10.00" fill="#000000"> principles of the Web as it was</text>
+<text text-anchor="start" x="2408.3315" y="-151" font-family="arial" font-size="10.00" fill="#000000"> emerging, and it&#39;s still important</text>
+<text text-anchor="start" x="2464.993" y="-139" font-family="arial" font-size="10.00" fill="#000000"> today.</text>
+</g>
+<!-- n5&#45;&gt;n3 -->
+<g id="edge5" class="edge">
+<title>n5&#45;&gt;n3</title>
+<path fill="none" stroke="#00ff00" d="M2390.3735,-202.07C2384.5203,-204.1497 2378.6925,-206.146 2373,-208 2300.1172,-231.7376 2216.537,-253.5181 2151.8569,-269.221"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="2150.9475,-265.8399 2142.0493,-271.5907 2152.5916,-272.6441 2150.9475,-265.8399"/>
+</g>
+<!-- n6 -->
+<g id="node7" class="node">
+<title>n6</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M2352,-184C2352,-184 2172,-184 2172,-184 2166,-184 2160,-178 2160,-172 2160,-172 2160,-160 2160,-160 2160,-154 2166,-148 2172,-148 2172,-148 2352,-148 2352,-148 2358,-148 2364,-154 2364,-160 2364,-160 2364,-172 2364,-172 2364,-178 2358,-184 2352,-184"/>
+<text text-anchor="start" x="2169.754" y="-169" font-family="arial" font-size="10.00" fill="#000000">WASM is the new form of the language of</text>
+<text text-anchor="start" x="2206.992" y="-157" font-family="arial" font-size="10.00" fill="#000000"> the Web, and it&#39;s binary.</text>
+</g>
+<!-- n6&#45;&gt;n3 -->
+<g id="edge6" class="edge">
+<title>n6&#45;&gt;n3</title>
+<path fill="none" stroke="#ff0000" d="M2231.2283,-184.0678C2196.4937,-204.4624 2139.3585,-238.0097 2097.3243,-262.6903"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="2095.4486,-259.7329 2088.5973,-267.8144 2098.9929,-265.7693 2095.4486,-259.7329"/>
+</g>
+<!-- n7 -->
+<g id="node8" class="node">
+<title>n7</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M2130,-190C2130,-190 1958,-190 1958,-190 1952,-190 1946,-184 1946,-178 1946,-178 1946,-154 1946,-154 1946,-148 1952,-142 1958,-142 1958,-142 2130,-142 2130,-142 2136,-142 2142,-148 2142,-154 2142,-154 2142,-178 2142,-178 2142,-184 2136,-190 2130,-190"/>
+<text text-anchor="start" x="1960.101" y="-175" font-family="arial" font-size="10.00" fill="#000000">Parsing a text format is more complex</text>
+<text text-anchor="start" x="1964.256" y="-163" font-family="arial" font-size="10.00" fill="#000000"> and takes more time than parsing a</text>
+<text text-anchor="start" x="2009.552" y="-151" font-family="arial" font-size="10.00" fill="#000000"> SPIR&#45;V binary.</text>
+</g>
+<!-- n7&#45;&gt;n3 -->
+<g id="edge8" class="edge">
+<title>n7&#45;&gt;n3</title>
+<path fill="none" stroke="#ff0000" d="M2044,-190.0758C2044,-209.1197 2044,-236.0161 2044,-257.675"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="2040.5001,-257.8295 2044,-267.8295 2047.5001,-257.8295 2040.5001,-257.8295"/>
+</g>
+<!-- n8 -->
+<g id="node9" class="node">
+<title>n8</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M2130,-82C2130,-82 1958,-82 1958,-82 1952,-82 1946,-76 1946,-70 1946,-70 1946,-34 1946,-34 1946,-28 1952,-22 1958,-22 1958,-22 2130,-22 2130,-22 2136,-22 2142,-28 2142,-34 2142,-34 2142,-70 2142,-70 2142,-76 2136,-82 2130,-82"/>
+<text text-anchor="start" x="1963.7005" y="-67" font-family="arial" font-size="10.00" fill="#000000">shader parsing is only a couple of %</text>
+<text text-anchor="start" x="1965.089" y="-55" font-family="arial" font-size="10.00" fill="#000000"> for the time total spent in a pipeline</text>
+<text text-anchor="start" x="1973.16" y="-43" font-family="arial" font-size="10.00" fill="#000000"> creation. Most time is still spent</text>
+<text text-anchor="start" x="2006.219" y="-31" font-family="arial" font-size="10.00" fill="#000000"> within the driver.</text>
+</g>
+<!-- n8&#45;&gt;n7 -->
+<g id="edge7" class="edge">
+<title>n8&#45;&gt;n7</title>
+<path fill="none" stroke="#ff0000" d="M2044,-82.2506C2044,-97.3644 2044,-115.7231 2044,-131.3957"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="2040.5001,-131.7439 2044,-141.744 2047.5001,-131.744 2040.5001,-131.7439"/>
+</g>
+<!-- n9 -->
+<g id="node10" class="node">
+<title>n9</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M1916,-190C1916,-190 1744,-190 1744,-190 1738,-190 1732,-184 1732,-178 1732,-178 1732,-154 1732,-154 1732,-148 1738,-142 1744,-142 1744,-142 1916,-142 1916,-142 1922,-142 1928,-148 1928,-154 1928,-154 1928,-178 1928,-178 1928,-184 1922,-190 1916,-190"/>
+<text text-anchor="start" x="1748.3105" y="-175" font-family="arial" font-size="10.00" fill="#000000">Text is more verbose and redundant,</text>
+<text text-anchor="start" x="1756.087" y="-163" font-family="arial" font-size="10.00" fill="#000000"> from the point of view of the data</text>
+<text text-anchor="start" x="1770.2685" y="-151" font-family="arial" font-size="10.00" fill="#000000"> transferred from the client.</text>
+</g>
+<!-- n9&#45;&gt;n3 -->
+<g id="edge10" class="edge">
+<title>n9&#45;&gt;n3</title>
+<path fill="none" stroke="#ff0000" d="M1870.2518,-190.0758C1904.5511,-210.5913 1954.0861,-240.2197 1991.4966,-262.5961"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1989.8676,-265.7 2000.2462,-267.8295 1993.4608,-259.6926 1989.8676,-265.7"/>
+</g>
+<!-- n10 -->
+<g id="node11" class="node">
+<title>n10</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M1916,-88C1916,-88 1744,-88 1744,-88 1738,-88 1732,-82 1732,-76 1732,-76 1732,-28 1732,-28 1732,-22 1738,-16 1744,-16 1744,-16 1916,-16 1916,-16 1922,-16 1928,-22 1928,-28 1928,-28 1928,-76 1928,-76 1928,-82 1922,-88 1916,-88"/>
+<text text-anchor="start" x="1749.697" y="-73" font-family="arial" font-size="10.00" fill="#000000">there is no indication that text&#45;based</text>
+<text text-anchor="start" x="1750.807" y="-61" font-family="arial" font-size="10.00" fill="#000000"> shaders are going to be larger than</text>
+<text text-anchor="start" x="1753.8805" y="-49" font-family="arial" font-size="10.00" fill="#000000"> SPIR&#45;V, which is known for its big</text>
+<text text-anchor="start" x="1741.6455" y="-37" font-family="arial" font-size="10.00" fill="#000000"> size. Compressed, text should be close</text>
+<text text-anchor="start" x="1781.941" y="-25" font-family="arial" font-size="10.00" fill="#000000"> in size, if not smaller.</text>
+</g>
+<!-- n10&#45;&gt;n9 -->
+<g id="edge9" class="edge">
+<title>n10&#45;&gt;n9</title>
+<path fill="none" stroke="#ff0000" d="M1830,-88.0703C1830,-102.0013 1830,-117.8692 1830,-131.6344"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1826.5001,-131.6839 1830,-141.684 1833.5001,-131.684 1826.5001,-131.6839"/>
+</g>
+<!-- n11 -->
+<g id="node12" class="node">
+<title>n11</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M1702,-184C1702,-184 1528,-184 1528,-184 1522,-184 1516,-178 1516,-172 1516,-172 1516,-160 1516,-160 1516,-154 1522,-148 1528,-148 1528,-148 1702,-148 1702,-148 1708,-148 1714,-154 1714,-160 1714,-160 1714,-172 1714,-172 1714,-178 1708,-184 1702,-184"/>
+<text text-anchor="start" x="1525.822" y="-163" font-family="arial" font-size="10.00" fill="#000000">Text format is more complex than binary</text>
+</g>
+<!-- n11&#45;&gt;n3 -->
+<g id="edge12" class="edge">
+<title>n11&#45;&gt;n3</title>
+<path fill="none" stroke="#ff0000" d="M1658.2244,-184.0547C1677.8201,-191.9162 1701.3947,-200.9282 1723,-208 1793.1341,-230.9562 1873.3186,-252.4417 1936.0023,-268.1954"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1935.3577,-271.6419 1945.9082,-270.6739 1937.0568,-264.8513 1935.3577,-271.6419"/>
+</g>
+<!-- n12 -->
+<g id="node13" class="node">
+<title>n12</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M1702,-76C1702,-76 1526,-76 1526,-76 1520,-76 1514,-70 1514,-64 1514,-64 1514,-40 1514,-40 1514,-34 1520,-28 1526,-28 1526,-28 1702,-28 1702,-28 1708,-28 1714,-34 1714,-40 1714,-40 1714,-64 1714,-64 1714,-70 1708,-76 1702,-76"/>
+<text text-anchor="start" x="1529.812" y="-61" font-family="arial" font-size="10.00" fill="#000000">complexity is independent of the form.</text>
+<text text-anchor="start" x="1523.6965" y="-49" font-family="arial" font-size="10.00" fill="#000000"> There can be complex binary languages</text>
+<text text-anchor="start" x="1565.3745" y="-37" font-family="arial" font-size="10.00" fill="#000000"> and simple text ones.</text>
+</g>
+<!-- n12&#45;&gt;n11 -->
+<g id="edge11" class="edge">
+<title>n12&#45;&gt;n11</title>
+<path fill="none" stroke="#ff0000" d="M1614.2121,-76.1765C1614.37,-94.1808 1614.5861,-118.8128 1614.752,-137.7291"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1611.253,-137.873 1614.8407,-147.8418 1618.2528,-137.8115 1611.253,-137.873"/>
+</g>
+<!-- n13 -->
+<g id="node14" class="node">
+<title>n13</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M1486,-190C1486,-190 1312,-190 1312,-190 1306,-190 1300,-184 1300,-178 1300,-178 1300,-154 1300,-154 1300,-148 1306,-142 1312,-142 1312,-142 1486,-142 1486,-142 1492,-142 1498,-148 1498,-154 1498,-154 1498,-178 1498,-178 1498,-184 1492,-190 1486,-190"/>
+<text text-anchor="start" x="1309.8115" y="-175" font-family="arial" font-size="10.00" fill="#000000">Angle team has experience with WebGL</text>
+<text text-anchor="start" x="1334.8085" y="-163" font-family="arial" font-size="10.00" fill="#000000"> shading language, there is a</text>
+<text text-anchor="start" x="1356.498" y="-151" font-family="arial" font-size="10.00" fill="#000000"> impressive bug list</text>
+</g>
+<!-- n26 -->
+<g id="node27" class="node">
+<title>n26</title>
+<path fill="#1b9e77" stroke="#000000" d="M1392,-326C1392,-326 1220,-326 1220,-326 1214,-326 1208,-320 1208,-314 1208,-314 1208,-274 1208,-274 1208,-268 1214,-262 1220,-262 1220,-262 1392,-262 1392,-262 1398,-262 1404,-268 1404,-274 1404,-274 1404,-314 1404,-314 1404,-320 1398,-326 1392,-326"/>
+<text text-anchor="start" x="1240.4335" y="-312" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Parsing text is prone to errors</text>
+<text text-anchor="start" x="1254.6005" y="-295" font-family="arial" font-size="10.00" fill="#000000">there is a large class of</text>
+<text text-anchor="start" x="1220.9865" y="-283" font-family="arial" font-size="10.00" fill="#000000"> parsing/processing errors that doesn&#39;t</text>
+<text text-anchor="start" x="1225.992" y="-271" font-family="arial" font-size="10.00" fill="#000000"> exist in a binary format like SPIR&#45;V/</text>
+</g>
+<!-- n13&#45;&gt;n26 -->
+<g id="edge17" class="edge">
+<title>n13&#45;&gt;n26</title>
+<path fill="none" stroke="#00ff00" d="M1381.5074,-190.0758C1368.5012,-207.9769 1350.4539,-232.8162 1335.2646,-253.7219"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1332.4317,-251.6664 1329.3853,-261.8138 1338.0948,-255.781 1332.4317,-251.6664"/>
+</g>
+<!-- n14 -->
+<g id="node15" class="node">
+<title>n14</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M1270,-184C1270,-184 1098,-184 1098,-184 1092,-184 1086,-178 1086,-172 1086,-172 1086,-160 1086,-160 1086,-154 1092,-148 1098,-148 1098,-148 1270,-148 1270,-148 1276,-148 1282,-154 1282,-160 1282,-160 1282,-172 1282,-172 1282,-178 1276,-184 1270,-184"/>
+<text text-anchor="start" x="1115.1045" y="-169" font-family="arial" font-size="10.00" fill="#000000">SPIR&#45;V isn&#39;t tested directly, but</text>
+<text text-anchor="start" x="1147.6025" y="-157" font-family="arial" font-size="10.00" fill="#000000"> rather via GLSL</text>
+</g>
+<!-- n27 -->
+<g id="node28" class="node">
+<title>n27</title>
+<path fill="#1b9e77" stroke="#000000" d="M1085,-332C1085,-332 913,-332 913,-332 907,-332 901,-326 901,-320 901,-320 901,-268 901,-268 901,-262 907,-256 913,-256 913,-256 1085,-256 1085,-256 1091,-256 1097,-262 1097,-268 1097,-268 1097,-320 1097,-320 1097,-326 1091,-332 1085,-332"/>
+<text text-anchor="start" x="945.9455" y="-318" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">SPIR&#45;V is well&#45;specified</text>
+<text text-anchor="start" x="930.0985" y="-301" font-family="arial" font-size="10.00" fill="#000000">It&#39;s an existing modern shading</text>
+<text text-anchor="start" x="923.9705" y="-289" font-family="arial" font-size="10.00" fill="#000000"> language that has a very detailed</text>
+<text text-anchor="start" x="913.416" y="-277" font-family="arial" font-size="10.00" fill="#000000"> specification and a good conformance</text>
+<text text-anchor="start" x="976.215" y="-265" font-family="arial" font-size="10.00" fill="#000000"> test suite.</text>
+</g>
+<!-- n14&#45;&gt;n27 -->
+<g id="edge19" class="edge">
+<title>n14&#45;&gt;n27</title>
+<path fill="none" stroke="#ff0000" d="M1157.8864,-184.0678C1133.2917,-201.0846 1095.4628,-227.2582 1062.886,-249.7978"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1060.5238,-247.176 1054.2917,-255.7441 1064.5067,-252.9325 1060.5238,-247.176"/>
+</g>
+<!-- n15 -->
+<g id="node16" class="node">
+<title>n15</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M1056,-208C1056,-208 884,-208 884,-208 878,-208 872,-202 872,-196 872,-196 872,-136 872,-136 872,-130 878,-124 884,-124 884,-124 1056,-124 1056,-124 1062,-124 1068,-130 1068,-136 1068,-136 1068,-196 1068,-196 1068,-202 1062,-208 1056,-208"/>
+<text text-anchor="start" x="913.603" y="-193" font-family="arial" font-size="10.00" fill="#000000">It&#39;s specified in 2 different</text>
+<text text-anchor="start" x="891.081" y="-181" font-family="arial" font-size="10.00" fill="#000000"> documents: language itself and the</text>
+<text text-anchor="start" x="883.0465" y="-169" font-family="arial" font-size="10.00" fill="#000000"> execution environment. Sometimes it&#39;s</text>
+<text text-anchor="start" x="889.697" y="-157" font-family="arial" font-size="10.00" fill="#000000"> not easy to figure out which of them</text>
+<text text-anchor="start" x="902.4885" y="-145" font-family="arial" font-size="10.00" fill="#000000"> is responsible for describing a</text>
+<text text-anchor="start" x="926.1045" y="-133" font-family="arial" font-size="10.00" fill="#000000"> particular behavior.</text>
+</g>
+<!-- n15&#45;&gt;n27 -->
+<g id="edge20" class="edge">
+<title>n15&#45;&gt;n27</title>
+<path fill="none" stroke="#ff0000" d="M979.5761,-208.2667C982.2828,-220.2137 985.2493,-233.3071 988.0311,-245.5857"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="984.6915,-246.6855 990.3147,-255.6649 991.5185,-245.1387 984.6915,-246.6855"/>
+</g>
+<!-- n16 -->
+<g id="node17" class="node">
+<title>n16</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M842,-184C842,-184 670,-184 670,-184 664,-184 658,-178 658,-172 658,-172 658,-160 658,-160 658,-154 664,-148 670,-148 670,-148 842,-148 842,-148 848,-148 854,-154 854,-160 854,-160 854,-172 854,-172 854,-178 848,-184 842,-184"/>
+<text text-anchor="start" x="705.1595" y="-163" font-family="arial" font-size="10.00" fill="#000000">It has a memory model</text>
+</g>
+<!-- n16&#45;&gt;n27 -->
+<g id="edge22" class="edge">
+<title>n16&#45;&gt;n27</title>
+<path fill="none" stroke="#00ff00" d="M790.3006,-184.0678C823.2858,-201.4427 874.3937,-228.3638 917.7768,-251.2157"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="916.1459,-254.3126 926.6247,-255.8764 919.4083,-248.1192 916.1459,-254.3126"/>
+</g>
+<!-- n17 -->
+<g id="node18" class="node">
+<title>n17</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M844,-70C844,-70 668,-70 668,-70 662,-70 656,-64 656,-58 656,-58 656,-46 656,-46 656,-40 662,-34 668,-34 668,-34 844,-34 844,-34 850,-34 856,-40 856,-46 856,-46 856,-58 856,-58 856,-64 850,-70 844,-70"/>
+<text text-anchor="start" x="665.991" y="-55" font-family="arial" font-size="10.00" fill="#000000">WebGPU can borrow the memory model</text>
+<text text-anchor="start" x="689.875" y="-43" font-family="arial" font-size="10.00" fill="#000000"> without taking the full SPIR&#45;V</text>
+</g>
+<!-- n17&#45;&gt;n16 -->
+<g id="edge21" class="edge">
+<title>n17&#45;&gt;n16</title>
+<path fill="none" stroke="#ff0000" d="M756,-70.0636C756,-88.2173 756,-116.464 756,-137.6141"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="752.5001,-137.6433 756,-147.6434 759.5001,-137.6434 752.5001,-137.6433"/>
+</g>
+<!-- n18 -->
+<g id="node19" class="node">
+<title>n18</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M628,-190C628,-190 456,-190 456,-190 450,-190 444,-184 444,-178 444,-178 444,-154 444,-154 444,-148 450,-142 456,-142 456,-142 628,-142 628,-142 634,-142 640,-148 640,-154 640,-154 640,-178 640,-178 640,-184 634,-190 628,-190"/>
+<text text-anchor="start" x="472.551" y="-175" font-family="arial" font-size="10.00" fill="#000000">There are libraries for reflecting</text>
+<text text-anchor="start" x="462.5315" y="-163" font-family="arial" font-size="10.00" fill="#000000"> SPIR&#45;V in popular languages: C++,</text>
+<text text-anchor="start" x="493.0945" y="-151" font-family="arial" font-size="10.00" fill="#000000"> Rust, Go, Python etc.</text>
+</g>
+<!-- n28 -->
+<g id="node29" class="node">
+<title>n28</title>
+<path fill="#1b9e77" stroke="#000000" d="M871,-320C871,-320 699,-320 699,-320 693,-320 687,-314 687,-308 687,-308 687,-280 687,-280 687,-274 693,-268 699,-268 699,-268 871,-268 871,-268 877,-268 883,-274 883,-280 883,-280 883,-308 883,-308 883,-314 877,-320 871,-320"/>
+<text text-anchor="start" x="716.9315" y="-306" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">SPIR&#45;V has a large ecosystem</text>
+<text text-anchor="start" x="705.5335" y="-289" font-family="arial" font-size="10.00" fill="#000000">Leveraging this ecosystem can help</text>
+<text text-anchor="start" x="735.543" y="-277" font-family="arial" font-size="10.00" fill="#000000"> WebGPU to succeed.</text>
+</g>
+<!-- n18&#45;&gt;n28 -->
+<g id="edge24" class="edge">
+<title>n18&#45;&gt;n28</title>
+<path fill="none" stroke="#00ff00" d="M587.7064,-190.0758C626.9825,-210.7644 683.8521,-240.7204 726.4542,-263.161"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="724.8382,-266.2657 735.317,-267.8295 728.1005,-260.0723 724.8382,-266.2657"/>
+</g>
+<!-- n19 -->
+<g id="node20" class="node">
+<title>n19</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M414,-184C414,-184 242,-184 242,-184 236,-184 230,-178 230,-172 230,-172 230,-160 230,-160 230,-154 236,-148 242,-148 242,-148 414,-148 414,-148 420,-148 426,-154 426,-160 426,-160 426,-172 426,-172 426,-178 420,-184 414,-184"/>
+<text text-anchor="start" x="256.315" y="-169" font-family="arial" font-size="10.00" fill="#000000">There is both an optimizer and a</text>
+<text text-anchor="start" x="270.772" y="-157" font-family="arial" font-size="10.00" fill="#000000"> validator in SPIRV&#45;Tools.</text>
+</g>
+<!-- n19&#45;&gt;n28 -->
+<g id="edge25" class="edge">
+<title>n19&#45;&gt;n28</title>
+<path fill="none" stroke="#00ff00" d="M367.6695,-184.061C387.5276,-192.4563 412.1501,-201.9077 435,-208 540.4935,-236.127 573.4462,-212.5596 678,-244 694.6606,-249.01 712.0313,-256.1915 727.8112,-263.5548"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="726.3689,-266.7446 736.901,-267.8961 729.3857,-260.428 726.3689,-266.7446"/>
+</g>
+<!-- n20 -->
+<g id="node21" class="node">
+<title>n20</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M200,-184C200,-184 28,-184 28,-184 22,-184 16,-178 16,-172 16,-172 16,-160 16,-160 16,-154 22,-148 28,-148 28,-148 200,-148 200,-148 206,-148 212,-154 212,-160 212,-160 212,-172 212,-172 212,-178 206,-184 200,-184"/>
+<text text-anchor="start" x="34.8245" y="-169" font-family="arial" font-size="10.00" fill="#000000">SPIRV&#45;Cross exists, it can translate</text>
+<text text-anchor="start" x="34.256" y="-157" font-family="arial" font-size="10.00" fill="#000000"> SPIR&#45;V into MSL, HLSL, and GLSL</text>
+</g>
+<!-- n20&#45;&gt;n28 -->
+<g id="edge27" class="edge">
+<title>n20&#45;&gt;n28</title>
+<path fill="none" stroke="#00ff00" d="M152.2528,-184.2003C172.2777,-192.9021 197.4688,-202.5814 221,-208 419.5443,-253.7195 480.9966,-192.0407 678,-244 695.3195,-248.568 713.2781,-255.8405 729.4229,-263.4398"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="728.1751,-266.7243 738.7007,-267.934 731.2268,-260.4245 728.1751,-266.7243"/>
+</g>
+<!-- n21 -->
+<g id="node22" class="node">
+<title>n21</title>
+<path fill="#ffffff" stroke="#1b9e77" stroke-width="2" d="M200,-88C200,-88 28,-88 28,-88 22,-88 16,-82 16,-76 16,-76 16,-28 16,-28 16,-22 22,-16 28,-16 28,-16 200,-16 200,-16 206,-16 212,-22 212,-28 212,-28 212,-76 212,-76 212,-82 206,-88 200,-88"/>
+<text text-anchor="start" x="33.147" y="-73" font-family="arial" font-size="10.00" fill="#000000">After inspecting it and experimenting</text>
+<text text-anchor="start" x="43.151" y="-61" font-family="arial" font-size="10.00" fill="#000000"> with it, both Google and Mozilla</text>
+<text text-anchor="start" x="31.486" y="-49" font-family="arial" font-size="10.00" fill="#000000"> decided to not use SPIRV&#45;Cross. It&#39;s</text>
+<text text-anchor="start" x="38.1485" y="-37" font-family="arial" font-size="10.00" fill="#000000"> hard to bring it into shape that will</text>
+<text text-anchor="start" x="31.203" y="-25" font-family="arial" font-size="10.00" fill="#000000"> be suitable for shipping in a browser.</text>
+</g>
+<!-- n21&#45;&gt;n20 -->
+<g id="edge26" class="edge">
+<title>n21&#45;&gt;n20</title>
+<path fill="none" stroke="#ff0000" d="M114,-88.0703C114,-104.1325 114,-122.7696 114,-137.7899"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="110.5001,-137.9992 114,-147.9993 117.5001,-137.9993 110.5001,-137.9992"/>
+</g>
+<!-- n22&#45;&gt;n0 -->
+<g id="edge3" class="edge">
+<title>n22&#45;&gt;n0</title>
+<path fill="none" stroke="#ff0000" d="M2817.9041,-300.7676C2672.3691,-310.7272 2390.6452,-329.6972 2151,-344 1725.3867,-369.402 1218.5799,-395.5157 1000.534,-406.5521"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1000.1809,-403.0654 990.3706,-407.0662 1000.5346,-410.0565 1000.1809,-403.0654"/>
+</g>
+<!-- n23 -->
+<g id="node24" class="node">
+<title>n23</title>
+<path fill="#1b9e77" stroke="#000000" d="M657,-336C657,-336 465,-336 465,-336 459,-336 453,-330 453,-324 453,-324 453,-264 453,-264 453,-258 459,-252 465,-252 465,-252 657,-252 657,-252 663,-252 669,-258 669,-264 669,-264 669,-324 669,-324 669,-330 663,-336 657,-336"/>
+<text text-anchor="start" x="477.9215" y="-322" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">SPIR&#45;V can&#39;t be used in the tests and</text>
+<text text-anchor="start" x="538.2185" y="-312" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000"> examples</text>
+<text text-anchor="start" x="486.838" y="-297" font-family="arial" font-size="10.00" fill="#000000">If we can&#39;t write it, we&#39;d be writing</text>
+<text text-anchor="start" x="492.923" y="-285" font-family="arial" font-size="10.00" fill="#000000"> tests and examples in another</text>
+<text text-anchor="start" x="462.6475" y="-273" font-family="arial" font-size="10.00" fill="#000000"> language, which would make WebGPU less</text>
+<text text-anchor="start" x="534.8805" y="-261" font-family="arial" font-size="10.00" fill="#000000"> strong API.</text>
+</g>
+<!-- n23&#45;&gt;n0 -->
+<g id="edge14" class="edge">
+<title>n23&#45;&gt;n0</title>
+<path fill="none" stroke="#ff0000" d="M657.4336,-336.0693C664.3638,-338.828 671.2704,-341.4995 678,-344 712.2369,-356.7215 750.0774,-369.2395 784.298,-379.9989"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="783.2591,-383.3411 793.848,-382.9857 785.3486,-376.6602 783.2591,-383.3411"/>
+</g>
+<!-- n24 -->
+<g id="node25" class="node">
+<title>n24</title>
+<path fill="#1b9e77" stroke="#000000" d="M422.5,-326C422.5,-326 247.5,-326 247.5,-326 241.5,-326 235.5,-320 235.5,-314 235.5,-314 235.5,-274 235.5,-274 235.5,-268 241.5,-262 247.5,-262 247.5,-262 422.5,-262 422.5,-262 428.5,-262 434.5,-268 434.5,-274 434.5,-274 434.5,-314 434.5,-314 434.5,-320 428.5,-326 422.5,-326"/>
+<text text-anchor="start" x="259.6445" y="-312" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">SPIR&#45;V is developed indepenently</text>
+<text text-anchor="start" x="245.757" y="-295" font-family="arial" font-size="10.00" fill="#000000">SPIR&#45;V is developed by a working group</text>
+<text text-anchor="start" x="262.154" y="-283" font-family="arial" font-size="10.00" fill="#000000"> inside Khronos, which may bring</text>
+<text text-anchor="start" x="293.8195" y="-271" font-family="arial" font-size="10.00" fill="#000000"> tension to using it.</text>
+</g>
+<!-- n24&#45;&gt;n0 -->
+<g id="edge15" class="edge">
+<title>n24&#45;&gt;n0</title>
+<path fill="none" stroke="#ff0000" d="M396.9538,-326.0308C412.0359,-332.8101 428.3407,-339.321 444,-344 557.1557,-377.8111 691.6585,-395.3516 783.5595,-404.077"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="783.4307,-407.58 793.7119,-405.0215 784.0792,-400.6101 783.4307,-407.58"/>
+</g>
+<!-- n25 -->
+<g id="node26" class="node">
+<title>n25</title>
+<path fill="#1b9e77" stroke="#000000" d="M205.5,-336C205.5,-336 28.5,-336 28.5,-336 22.5,-336 16.5,-330 16.5,-324 16.5,-324 16.5,-264 16.5,-264 16.5,-258 22.5,-252 28.5,-252 28.5,-252 205.5,-252 205.5,-252 211.5,-252 217.5,-258 217.5,-264 217.5,-264 217.5,-324 217.5,-324 217.5,-330 211.5,-336 205.5,-336"/>
+<text text-anchor="start" x="40.529" y="-322" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Nobody wants yet another shading</text>
+<text text-anchor="start" x="95.5445" y="-312" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000"> language</text>
+<text text-anchor="start" x="32.756" y="-297" font-family="arial" font-size="10.00" fill="#000000">we already have a diversity of shading</text>
+<text text-anchor="start" x="26.912" y="-285" font-family="arial" font-size="10.00" fill="#000000"> languages, as well as huge shader code</text>
+<text text-anchor="start" x="31.0775" y="-273" font-family="arial" font-size="10.00" fill="#000000"> bases. Adding support for another one</text>
+<text text-anchor="start" x="32.751" y="-261" font-family="arial" font-size="10.00" fill="#000000"> is something nobody is excited about.</text>
+</g>
+<!-- n25&#45;&gt;n0 -->
+<g id="edge16" class="edge">
+<title>n25&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M202.4837,-336.0384C210.6462,-339.0808 218.9003,-341.8083 227,-344 329.0131,-371.604 622.4545,-394.3484 783.316,-405.1765"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="783.5051,-408.6969 793.7165,-405.8724 783.9725,-401.7125 783.5051,-408.6969"/>
+</g>
+<!-- n26&#45;&gt;n0 -->
+<g id="edge18" class="edge">
+<title>n26&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1207.8878,-321.9644C1145.3427,-339.7912 1064.2568,-362.9026 999.8989,-381.2462"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="998.7821,-377.925 990.1245,-384.0321 1000.7009,-384.6569 998.7821,-377.925"/>
+</g>
+<!-- n27&#45;&gt;n0 -->
+<g id="edge23" class="edge">
+<title>n27&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M964.2602,-332.3112C952.6297,-345.1373 939.645,-359.457 927.9258,-372.3809"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="925.3164,-370.0481 921.1918,-379.8071 930.502,-374.7503 925.3164,-370.0481"/>
+</g>
+<!-- n28&#45;&gt;n0 -->
+<g id="edge28" class="edge">
+<title>n28&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M808.7468,-320.188C822.6285,-335.4969 840.429,-355.1273 856.0047,-372.3043"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="853.6724,-374.9426 862.9825,-379.9994 858.8579,-370.2404 853.6724,-374.9426"/>
+</g>
+</g>
+</svg>
+</div></argdown-map></figure>
