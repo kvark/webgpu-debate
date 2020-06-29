@@ -1,6 +1,3 @@
 {
-    "inputPath": "*.argdown",
-    "parser": {
-        "throwExceptions": true
-    }
+    "inputPath": "*.argdown"
 }

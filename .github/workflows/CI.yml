@@ -10,4 +10,5 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-node@v1
     - run: npm install -g @argdown/cli
-    - run: argdown html
+    - run: argdown html 2>error.log
+    - run: (! test -s error.log)

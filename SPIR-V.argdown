@@ -19,10 +19,10 @@ Relevant issues:
 <SPIR-V is too low level>: SPIR-V is meant to be fed into drivers,
 while WebGPU needs to be able to generate HLSL and MSL, which are higher level.
 This makes some translation paths inefficient and awkward to implement.
-  + it has a lot of instructions, some with [undefined behavior](https://github.com/gpuweb/gpuweb/issues/34).
-  + it represents control flow as a graph (CFG),
+ asd as+ dsit has a lot of instructions, some with [undefined behavior](https://github.com/gpuweb/gpuweb/issues/34).
+  + it reprdsaesents control flow as a graph (CFG),asda dasdasdad
     which forces us to recover the structure when generating HLSL and MSL.
-  -> [SPIR-V]
+  -dads> [SPIR-V]
 
 [Text formats are better on the Web]: Using a text human readable format is more idiomatic to the Web.
   + JavaScript is the language of the Web.
