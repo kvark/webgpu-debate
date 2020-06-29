@@ -1,0 +1,82 @@
+## WebGPU shading language
+<!--
+Initial requirements for WebGPU:
+- can't have shader operations with undefined behavior.
+- needs to be strictly specified.
+- needs to have predictable and portable performance.
+- needs to  be faithfully translatable to SPIR-V, HLSL/DXIR, and MSL.
+
+Relevant issues:
+  - [#42](https://github.com/gpuweb/gpuweb/issues/42) - for human-writable
+  - [#43](https://github.com/gpuweb/gpuweb/issues/43) - against binary
+  - [#44](https://github.com/gpuweb/gpuweb/issues/44) - for SPIR-V
+  - [#692](https://github.com/gpuweb/gpuweb/issues/692) - preserving developers trust
+-->
+
+[SPIR-V]: We should define a safe subset of SPIR-V and
+[accept it directly](https://github.com/gpuweb/gpuweb/issues/44) in WebGPU implementations.
+
+<SPIR-V is too low level>: SPIR-V is meant to be fed into drivers,
+while WebGPU needs to be able to generate HLSL and MSL, which are higher level.
+This makes some translation paths inefficient and awkward to implement.
+  + it has a lot of instructions, some with [undefined behavior](https://github.com/gpuweb/gpuweb/issues/34).
+  + it represents control flow as a graph (CFG),
+    which forces us to recover the structure when generating HLSL and MSL.
+  -> [SPIR-V]
+
+[Text formats are better on the Web]: Using a text human readable format is more idiomatic to the Web.
+  + JavaScript is the language of the Web.
+  + Being able to see the web source and tinker with it
+    was one of the principles of the Web as it was emerging,
+    and it's still important today.
+  - WASM is the new form of the language of the Web, and it's binary.
+  - Parsing a text format is more complex and takes more time than parsing a SPIR-V binary.
+    - shader parsing is only a couple of % for the time total spent in a pipeline creation.
+      Most time is still spent within the driver.
+  - Text is more verbose and redundant, from the point of view of the data transferred from the client.
+    - there is no indication that text-based shaders are going to be larger than SPIR-V,
+      which is known for its big size. Compressed, text should be close in size, if not smaller.
+  - Text format is more complex than binary
+    - complexity is independent of the form. There can be complex binary languages and simple text ones.
+  -> [SPIR-V]
+
+<SPIR-V can't be used in the tests and examples>: If we can't write it,
+we'd be writing tests and examples in another language, which would make WebGPU less strong API.
+  -> [SPIR-V]
+
+<SPIR-V is developed indepenently>: SPIR-V is developed by a working group inside
+Khronos, which may bring tension to using it.
+
+(1) Khronos working group has different constraints,
+it doesn't have any obligation to make SPIR-V changes that WebGPU would need.
+----
+(2) It is likely that WebGPU would need to have different versions of the same
+functionality present in core SPIR-V, like the instructions for ray tracing.
+----
+(3) That will effectively lead to the forking SPIR-V
+  -> [SPIR-V]
+
+<Nobody wants yet another shading language>: we already have a diversity of shading languages,
+as well as huge shader code bases. Adding support for another one is something nobody is excited about.
+  +> [SPIR-V]
+
+<Parsing text is prone to errors>: there is a large class of parsing/processing errors that doesn't exist in a binary format like SPIR-V/
+  + Angle team has experience with WebGL shading language, there is a impressive [bug list](https://docs.google.com/spreadsheets/d/1bjfZJcvGPI4M6Df5HC8BPQXbl847RpfsFKw6SI6_T30/edit)
+  +> [SPIR-V]
+
+<SPIR-V is well-specified>: It's an existing modern shading language
+that has a very detailed specification and a good conformance test suite.
+  - SPIR-V isn't tested directly, but rather via GLSL
+  - It's specified in 2 different documents: language itself and the execution environment.
+    Sometimes it's not easy to figure out which of them is responsible for describing a particular behavior.
+  + It has a memory model
+    - WebGPU can borrow the memory model without taking the full SPIR-V
+  +> [SPIR-V]
+
+<SPIR-V has a large ecosystem>: Leveraging this ecosystem can help WebGPU to succeed.
+  + There are libraries for reflecting SPIR-V in popular languages: [C++](https://github.com/KhronosGroup/SPIRV-Tools), [Rust](https://crates.io/crates/rspirv), [Go](https://github.com/vulkan-go/spv), [Python](https://github.com/kristerw/spirv-tools) etc.
+  + There is both an optimizer and a validator in SPIRV-Tools.
+  + [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) exists, it can translate SPIR-V into MSL, HLSL, and GLSL
+    - After inspecting it and experimenting with it, both Google and Mozilla decided to not use SPIRV-Cross.
+      It's hard to bring it into shape that will be suitable for shipping in a browser.
+  +> [SPIR-V]
