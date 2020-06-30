@@ -16,12 +16,16 @@ Relevant issues:
 [SPIR-V]: We should define a safe subset of SPIR-V and
 [accept it directly](https://github.com/gpuweb/gpuweb/issues/44) in WebGPU implementations.
 
+
+
 <SPIR-V is too low level>: SPIR-V is meant to be fed into drivers,
 while WebGPU needs to be able to generate HLSL and MSL, which are higher level.
 This makes some translation paths inefficient and awkward to implement.
   + it has a lot of instructions, some with [undefined behavior](https://github.com/gpuweb/gpuweb/issues/34).
   + it represents control flow as a graph (CFG),
     which forces us to recover the structure when generating HLSL and MSL.
+  - it lets everybody innovate on the shader language itself. It worked very well for WASM and JS/Babel.
+  - Lower level technologies are more perennial. Example: Rust, ASM, C
   -> [SPIR-V]
 
 [Text formats are better on the Web]: Using a text human readable format is more idiomatic to the Web.
@@ -44,7 +48,7 @@ This makes some translation paths inefficient and awkward to implement.
 we'd be writing tests and examples in another language, which would make WebGPU less strong API.
   -> [SPIR-V]
 
-<SPIR-V is developed indepenently>: SPIR-V is developed by a working group inside
+<SPIR-V is developed independently>: SPIR-V is developed by a working group inside
 Khronos, which may bring tension to using it.
 
 (1) Khronos working group has different constraints,
@@ -56,8 +60,11 @@ functionality present in core SPIR-V, like the instructions for ray tracing.
 (3) That will effectively lead to the forking SPIR-V
   -> [SPIR-V]
 
-<Nobody wants yet another shading language>: we already have a diversity of shading languages,
-as well as huge shader code bases. Adding support for another one is something nobody is excited about.
+<No Gatekeeping solely by the browser vendors>:
+  + Asking less of the vendors is a way to make the technology more perennial.
+  + Can rebuild trust with the community after the failure of WebGL2.
+  + WASM showed that languages can evolve good and fast without having to ask permissions to the browser vendors.
+  + Will put WebGPU in a better position to end up on Native.
   +> [SPIR-V]
 
 <Parsing text is prone to errors>: there is a large class of parsing/processing errors that doesn't exist in a binary format like SPIR-V/
@@ -71,6 +78,7 @@ that has a very detailed specification and a good conformance test suite.
     Sometimes it's not easy to figure out which of them is responsible for describing a particular behavior.
   + It has a memory model
     - WebGPU can borrow the memory model without taking the full SPIR-V
+  + It looks stable. It only had one minor revision a year since 2015.
   +> [SPIR-V]
 
 <SPIR-V has a large ecosystem>: Leveraging this ecosystem can help WebGPU to succeed.
