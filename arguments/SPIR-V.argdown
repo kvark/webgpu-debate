@@ -1,4 +1,4 @@
-## WebGPU shading language
+## WebGPU Shading Language
 <!--
 Initial requirements for WebGPU:
 - can't have shader operations with undefined behavior.

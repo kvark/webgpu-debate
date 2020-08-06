@@ -1,4 +1,4 @@
-## Robust Buffer Access
+## Subgroup Operations
 <!--
 Expose a subset of subgroup operations in WGSL shaders:
   - support: https://github.com/gpuweb/gpuweb/issues/78

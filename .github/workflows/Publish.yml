@@ -11,7 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
-      - run: npm install -g @argdown/cli
+        with:
+          node-version: '12'
+      - run: npm install -g @argdown/cli @argdown/web-components
       - run: argdown html
       - run: argdown web-component
       - name: Deploy on the Web
