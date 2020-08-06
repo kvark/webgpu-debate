@@ -12,9 +12,8 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
       - run: npm install -g @argdown/cli
-      - run: argdown html 2>?error.log
-      - run: argdown web-component 2>>error.log
-      - run: (! test -s error.log)
+      - run: argdown html
+      - run: argdown web-component
       - name: Deploy on the Web
         uses: JamesIves/github-pages-deploy-action@releases/v3
         with:
