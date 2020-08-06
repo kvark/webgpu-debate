@@ -1,0 +1,42 @@
+## Robust Buffer Access
+<!--
+Using Vulkan-style Robust Buffer Access in WebGPU.
+See the summary in https://github.com/gpuweb/gpuweb/issues/955
+-->
+
+[Vulkan-RBA]: We should always enable RBA on Vulkan.
+  + <future-compat>: we can tighten the requirements to be more portable later
+
+[RBA-non-portable]: Vulkan's RBA guarantees are too weak.
+Exposing it to the Web could hurt the portability of the API and applications.
+  + <writes>: OOB writes can be redirected to a random location within the resource, not necessarily discarded
+  + <reads>: OOB reads can return one of many different values, or any value within the resource
+  + <atomics>: OOB atomics return totally undefined values
+  + <range>: resource binding range is not respected
+  -> [Vulkan-RBA]
+
+<Hyrum's Law>: With a sufficient number of users of an API,
+it does not matter what you promise in the contract:
+all observable behaviors of your system
+will be depended on by somebody.
+
+  (1) Developer makes an application that writes a word outside of a storage buffer bounds,
+  and ships it widely.
+  (2) The application works well on all Metal, D3D12, and most Vulkan platforms,
+  where the write simply gets discarded.
+  However, developer receives bugs about some Vulkan platforms corrupting the data occasionally,
+  producing incorrect and unexpected results.
+  ----
+  (3) Developer and the application community blame Vulkan and WebGPU implementations.
+    +> [RBA-non-portable]
+
+[Vulkan-RBA2-opt]: We should only use [VK_EXT_robustness2](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_robustness2.html) where available, and have a fallback otherwise.
+  - <availability>: it's not available everywhere
+  + <consistency>: it provides the same guarantees as D3D12, and what we are going to do on Metal, which are much more portable.
+
+[Emulation-cost]: Emulating RBA on Vulkan is expensive.
+  + <extra descriptor set>: in order to do vertex pulling, we'd need another descriptor set,
+    and this can be needed on devices that already have only 4 descriptor sets max.
+  - <non-free>: RBA feature is not free either, and the cost may very between platforms.
+  - <min-size>: we don't need to do anything for the structured part of buffers, since it's covered by [minBufferBindingSize](https://github.com/gpuweb/gpuweb/pull/678).
+  -> [Vulkan-RBA2-opt]
