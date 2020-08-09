@@ -7,20 +7,27 @@ Expose a subset of subgroup operations in WGSL shaders:
 -->
 
 [Motivation]: We should have subgroup operations.
-  + <Standard Library>: Since subgroup operations are common across
-                        all three APIs, they were to be considered
-                        for [issue #667](https://github.com/gpuweb/gpuweb/issues/667).
-  + <Performance>: [Proven contribution](https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/)
-                   to general purpose algorithms.
+  + <Standard Library>: Common across all three APIs, see
+                        [#667](https://github.com/gpuweb/gpuweb/issues/667),
+                        [#78](https://github.com/gpuweb/gpuweb/issues/78), and
+                        [WSL#5](https://github.com/gpuweb/WSL/issues/5).
+  + <Performance>: Proven contribution to general purpose algorithms to make
+                   them run [multiple times](https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/)
+                   faster.
   + <Viable>: There is a safe subset of subgroup operations.
+  +> [Extension]
+  +> [Shuffle Operations]
+  +> [Quad Operations]
+  +> [Explicit Operations]
 
 
 [Extension]: Subgroup operations should be exposed as an extension.
   + <Target>: Subgroup operations are not available on all WebGPU
               target hardware.
 
-[Host Interface]: Subgroup size control and statistics should be exposed.
-  - <Pipeline Statistics>: Exact subgroup size can't be queried in DirectX 12.
+[Host Interface]: Subgroup size control and properties should be exposed
+                  to the host API.
+  - <Pipeline Properties>: Exact subgroup size can't be queried in DirectX 12.
   - <Size Control>: Only possible for Vulkan with
                     [VK_EXT_subgroup_size_control](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_subgroup_size_control.html).
 
@@ -40,6 +47,7 @@ Expose a subset of subgroup operations in WGSL shaders:
   - <Quadgroup Extension>: If quad operations are made into their own
                            extension, both its potential market becomes
                            larger and subgroup operations' market grows.
+    +> <Viable>
 
 [Explicit Operations]: Operations that take in active mask or lane index
                        should exist.
@@ -50,6 +58,7 @@ Expose a subset of subgroup operations in WGSL shaders:
   - <Avoiding Helps>: Implicitly active operations are useful enough
                       while making concerns of divergence or
                       reconvergence irrelevant.
+    +> <Viable>
 
 [Non-Uniform]: We should support the non-uniform subgroup model.
   + <Ubiquitous>: All WebGPU target APIs use non-uniform model.
