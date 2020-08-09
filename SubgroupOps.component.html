@@ -6,26 +6,62 @@ Expose a subset of subgroup operations in WGSL shaders:
   - PR: https://github.com/gpuweb/gpuweb/pull/954
 --&gt;</span>
 
-<span class="hljs-statement-title">[Extension]:</span> We should have an extension to expose subgroup operations.
-<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Performance&gt;:</span> depending on a workload and the platform, it&#x27;s possible to run [<span class="hljs-string">multiple times</span>](<span class="hljs-link">https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/</span>) faster.
-<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Support&gt;:</span> all 3 target APIs have some variation of subgroup operations, optionally.
+<span class="hljs-statement-title">[Motivation]:</span> We should have subgroup operations.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Standard Library&gt;:</span> Common across all three APIs, see
+                        [<span class="hljs-string">#667</span>](<span class="hljs-link">https://github.com/gpuweb/gpuweb/issues/667</span>),
+                        [<span class="hljs-string">#78</span>](<span class="hljs-link">https://github.com/gpuweb/gpuweb/issues/78</span>), and
+                        [<span class="hljs-string">WSL#5</span>](<span class="hljs-link">https://github.com/gpuweb/WSL/issues/5</span>).
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Performance&gt;:</span> Proven contribution to general purpose algorithms to make
+                   them run [<span class="hljs-string">multiple times</span>](<span class="hljs-link">https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/</span>)
+                   faster.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Viable&gt;:</span> There is a safe subset of subgroup operations.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Extension]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Shuffle Operations]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Quad Operations]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Explicit Operations]</span>
 
-<span class="hljs-statement-title">[Size Control]:</span> We should let the developer to control the size of subgroups (in compute workloads).
-<span class="hljs-support">  +</span> Vulkan has [<span class="hljs-string">VK_EXT_subgroup_size_control</span>](<span class="hljs-link">https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_subgroup_size_control.html</span>) extension to control the size.
-<span class="hljs-attack">  -</span> D3D12 and Metal don&#x27;t allow to control the size.
 
-<span class="hljs-statement-title">[Size Query]:</span> We should allow the developer to query the subgroup size from a compute pipeline.
-<span class="hljs-support">  +</span> Vulkan has [<span class="hljs-string">VK_KHR_pipeline_executable_properties</span>](<span class="hljs-link">https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_KHR_pipeline_executable_properties.html</span>) extension to query the size.
-<span class="hljs-support">  +</span> Metal has [<span class="hljs-string">threadExecutionWidth</span>](<span class="hljs-link">https://developer.apple.com/documentation/metal/mtlcomputepipelinestate/1414911-threadexecutionwidth</span>) to query the size.
-<span class="hljs-attack">  -</span> D3D12 doesn&#x27;t have anything to query the exact size.
-<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Useless&gt;:</span> it&#x27;s not actionable in Vulkan and D3D12, unlike Metal where we can control the workgroup size from the API.
+<span class="hljs-statement-title">[Extension]:</span> Subgroup operations should be exposed as an extension.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Target&gt;:</span> Subgroup operations are not available on all WebGPU
+              target hardware.
 
-<span class="hljs-statement-title">[Quad Ops]:</span> We should expose the quad operations in fragment shaders.
-<span class="hljs-attack">  -</span> new Adreno and PowerVR hardware doesn&#x27;t support this
-<span class="hljs-comment">//<span class="hljs-doctag">TODO:</span> fill this out more</span>
+<span class="hljs-statement-title">[Host Interface]:</span> Subgroup size control and properties should be exposed
+                  to the host API.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Pipeline Properties&gt;:</span> Exact subgroup size can&#x27;t be queried in DirectX 12.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Size Control&gt;:</span> Only possible for Vulkan with
+                    [<span class="hljs-string">VK_EXT_subgroup_size_control</span>](<span class="hljs-link">https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_subgroup_size_control.html</span>).
 
-<span class="hljs-statement-title">[Non-uniform]:</span> We should support the non-uniform subgroup model.
-<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Everywhere&gt;:</span> Vulkan, D3D, and Metal use a non-uniform model.
+
+<span class="hljs-statement-title">[Compute Only]:</span> Subgroup operations should only work in compute kernels.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Hardware&gt;:</span> Restricting to compute only increases market (e<span class="hljs-tag">.g.</span>, Adreno).
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Definition&gt;:</span> Operations are better defined for compute. And this
+                  makes concern of helper invocations irrelevant.
+<span class="hljs-support">    +&gt;</span> <span class="hljs-argument-title">&lt;Viable&gt;</span>
+
+<span class="hljs-statement-title">[Shuffle Operations]:</span> There should be shuffle and relative shuffle operations.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;DirectX 12&gt;:</span> DirectX 12 doesn&#x27;t have shuffle operations.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Narrow Support&gt;:</span> Not having shuffle operations increases
+                      support (e<span class="hljs-tag">.g.</span>, ARM).
+
+<span class="hljs-statement-title">[Quad Operations]:</span> Quad operations should be their own extension.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Varying Support&gt;:</span> Not ubiquitously supported (e<span class="hljs-tag">.g.</span>, PowerVR).
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Quadgroup Extension&gt;:</span> If quad operations are made into their own
+                           extension, both its potential market becomes
+                           larger and subgroup operations&#x27; market grows.
+
+<span class="hljs-statement-title">[Explicit Operations]:</span> Operations that take in active mask or lane index
+                       should exist.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Undefined Behavior&gt;:</span> Explicit operations such as broadcasting with
+                          index depends on successful query of active lanes
+                          which can&#x27;t be guaranteed with targeted
+                          underlying APIs.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Avoiding Helps&gt;:</span> Implicitly active operations are useful enough
+                      while making concerns of divergence or
+                      reconvergence irrelevant.
+<span class="hljs-support">    +&gt;</span> <span class="hljs-argument-title">&lt;Viable&gt;</span>
+
+<span class="hljs-statement-title">[Non-Uniform]:</span> We should support the non-uniform subgroup model.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Ubiquitous&gt;:</span> All WebGPU target APIs use non-uniform model.
 <span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Ambiguous Divergence&gt;:</span> when invocations in a subgroup are executing &quot;together&quot;, how long is that guaranteed?
 <span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Ambiguous Reconvergence&gt;:</span> once invocations diverge, what are the guarantees about where you reconverge?
 <span class="hljs-support">    +</span> Vulkan has weak guarantees, D3D12 and Metal don&#x27;t have anything.
@@ -37,292 +73,429 @@ Expose a subset of subgroup operations in WGSL shaders:
 <!-- Generated by graphviz version 2.44.0 (20200408.0750)
  -->
 <!-- Title: Argument Map Pages: 1 -->
-<svg width="720pt" height="88pt"
- viewBox="0.00 0.00 720.00 88.08" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g id="graph0" class="graph" transform="scale(0.27 0.27) rotate(0) translate(4 322.4)">
+<svg width="720pt" height="143pt"
+ viewBox="0.00 0.00 720.00 142.63" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.33 0.33) rotate(0) translate(4 434.4)">
 <title>Argument Map</title>
 <g id="clust1" class="cluster">
 <title>cluster_1</title>
-<polygon fill="#dadada" stroke="#dadada" points="8,-8 8,-310.4 2652,-310.4 2652,-8 8,-8"/>
-<text text-anchor="start" x="1272.98" y="-295.6" font-family="arial" font-size="12.00" fill="#000000">Subgroup Operations</text>
+<polygon fill="#dadada" stroke="#dadada" points="8,-8 8,-422.4 2197,-422.4 2197,-8 8,-8"/>
+<text text-anchor="start" x="1045.48" y="-407.6" font-family="arial" font-size="12.00" fill="#000000">Subgroup Operations</text>
 </g>
 <!-- n0 -->
 <g id="node1" class="node">
 <title>n0</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M843.5,-186C843.5,-186 670.5,-186 670.5,-186 664.5,-186 658.5,-180 658.5,-174 658.5,-174 658.5,-146 658.5,-146 658.5,-140 664.5,-134 670.5,-134 670.5,-134 843.5,-134 843.5,-134 849.5,-134 855.5,-140 855.5,-146 855.5,-146 855.5,-174 855.5,-174 855.5,-180 849.5,-186 843.5,-186"/>
-<text text-anchor="start" x="735.55" y="-172" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Extension</text>
-<text text-anchor="start" x="668.86" y="-155" font-family="arial" font-size="10.00" fill="#000000">We should have an extension to expose</text>
-<text text-anchor="start" x="709.15" y="-143" font-family="arial" font-size="10.00" fill="#000000"> subgroup operations.</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1535,-280C1535,-280 1363,-280 1363,-280 1357,-280 1351,-274 1351,-268 1351,-268 1351,-252 1351,-252 1351,-246 1357,-240 1363,-240 1363,-240 1535,-240 1535,-240 1541,-240 1547,-246 1547,-252 1547,-252 1547,-268 1547,-268 1547,-274 1541,-280 1535,-280"/>
+<text text-anchor="start" x="1426.22" y="-266" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Motivation</text>
+<text text-anchor="start" x="1364.81" y="-249" font-family="arial" font-size="10.00" fill="#000000">We should have subgroup operations.</text>
 </g>
 <!-- n1 -->
 <g id="node2" class="node">
 <title>n1</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M2510,-192C2510,-192 2338,-192 2338,-192 2332,-192 2326,-186 2326,-180 2326,-180 2326,-140 2326,-140 2326,-134 2332,-128 2338,-128 2338,-128 2510,-128 2510,-128 2516,-128 2522,-134 2522,-140 2522,-140 2522,-180 2522,-180 2522,-186 2516,-192 2510,-192"/>
-<text text-anchor="start" x="2396.78" y="-178" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Size Control</text>
-<text text-anchor="start" x="2340.09" y="-161" font-family="arial" font-size="10.00" fill="#000000">We should let the developer to control</text>
-<text text-anchor="start" x="2347.59" y="-149" font-family="arial" font-size="10.00" fill="#000000"> the size of subgroups (in compute</text>
-<text text-anchor="start" x="2397.05" y="-137" font-family="arial" font-size="10.00" fill="#000000"> workloads).</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1643.5,-392C1643.5,-392 1468.5,-392 1468.5,-392 1462.5,-392 1456.5,-386 1456.5,-380 1456.5,-380 1456.5,-352 1456.5,-352 1456.5,-346 1462.5,-340 1468.5,-340 1468.5,-340 1643.5,-340 1643.5,-340 1649.5,-340 1655.5,-346 1655.5,-352 1655.5,-352 1655.5,-380 1655.5,-380 1655.5,-386 1649.5,-392 1643.5,-392"/>
+<text text-anchor="start" x="1534.55" y="-378" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Extension</text>
+<text text-anchor="start" x="1466.74" y="-361" font-family="arial" font-size="10.00" fill="#000000">Subgroup operations should be exposed</text>
+<text text-anchor="start" x="1518.71" y="-349" font-family="arial" font-size="10.00" fill="#000000"> as an extension.</text>
+</g>
+<!-- n0&#45;&gt;n1 -->
+<g id="edge4" class="edge">
+<title>n0&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M1468.63,-280.08C1483.72,-294.75 1504.94,-315.37 1522.68,-332.61"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1520.43,-335.31 1530.04,-339.77 1525.31,-330.29 1520.43,-335.31"/>
 </g>
 <!-- n2 -->
 <g id="node3" class="node">
 <title>n2</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M2632,-72C2632,-72 2440,-72 2440,-72 2434,-72 2428,-66 2428,-60 2428,-60 2428,-48 2428,-48 2428,-42 2434,-36 2440,-36 2440,-36 2632,-36 2632,-36 2638,-36 2644,-42 2644,-48 2644,-48 2644,-60 2644,-60 2644,-66 2638,-72 2632,-72"/>
-<text text-anchor="start" x="2437.64" y="-57" font-family="arial" font-size="10.00" fill="#000000">Vulkan has VK_EXT_subgroup_size_control</text>
-<text text-anchor="start" x="2471.26" y="-45" font-family="arial" font-size="10.00" fill="#000000"> extension to control the size.</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1963,-392C1963,-392 1791,-392 1791,-392 1785,-392 1779,-386 1779,-380 1779,-380 1779,-352 1779,-352 1779,-346 1785,-340 1791,-340 1791,-340 1963,-340 1963,-340 1969,-340 1975,-346 1975,-352 1975,-352 1975,-380 1975,-380 1975,-386 1969,-392 1963,-392"/>
+<text text-anchor="start" x="1835.6" y="-378" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Shuffle Operations</text>
+<text text-anchor="start" x="1797.53" y="-361" font-family="arial" font-size="10.00" fill="#000000">There should be shuffle and relative</text>
+<text text-anchor="start" x="1834.76" y="-349" font-family="arial" font-size="10.00" fill="#000000"> shuffle operations.</text>
 </g>
-<!-- n2&#45;&gt;n1 -->
-<g id="edge3" class="edge">
-<title>n2&#45;&gt;n1</title>
-<path fill="none" stroke="#00ff00" d="M2517.51,-72.17C2503.26,-85.4 2483.03,-104.19 2465.02,-120.91"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="2462.41,-118.55 2457.47,-127.92 2467.18,-123.68 2462.41,-118.55"/>
+<!-- n0&#45;&gt;n2 -->
+<g id="edge5" class="edge">
+<title>n0&#45;&gt;n2</title>
+<path fill="none" stroke="#00ff00" d="M1491.03,-280.09C1510.48,-288.36 1534.1,-297.58 1556,-304 1625.76,-324.43 1706.11,-339.7 1768.97,-349.84"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1768.48,-353.31 1778.91,-351.43 1769.58,-346.4 1768.48,-353.31"/>
 </g>
 <!-- n3 -->
 <g id="node4" class="node">
 <title>n3</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M2398,-72C2398,-72 2226,-72 2226,-72 2220,-72 2214,-66 2214,-60 2214,-60 2214,-48 2214,-48 2214,-42 2220,-36 2226,-36 2226,-36 2398,-36 2398,-36 2404,-36 2410,-42 2410,-48 2410,-48 2410,-60 2410,-60 2410,-66 2404,-72 2398,-72"/>
-<text text-anchor="start" x="2226.15" y="-57" font-family="arial" font-size="10.00" fill="#000000">D3D12 and Metal don&#39;t allow to control</text>
-<text text-anchor="start" x="2291.99" y="-45" font-family="arial" font-size="10.00" fill="#000000"> the size.</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1087,-392C1087,-392 915,-392 915,-392 909,-392 903,-386 903,-380 903,-380 903,-352 903,-352 903,-346 909,-340 915,-340 915,-340 1087,-340 1087,-340 1093,-340 1099,-346 1099,-352 1099,-352 1099,-380 1099,-380 1099,-386 1093,-392 1087,-392"/>
+<text text-anchor="start" x="962.93" y="-378" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Quad Operations</text>
+<text text-anchor="start" x="919.31" y="-361" font-family="arial" font-size="10.00" fill="#000000">Quad operations should be their own</text>
+<text text-anchor="start" x="976.82" y="-349" font-family="arial" font-size="10.00" fill="#000000"> extension.</text>
 </g>
-<!-- n3&#45;&gt;n1 -->
-<g id="edge4" class="edge">
-<title>n3&#45;&gt;n1</title>
-<path fill="none" stroke="#ff0000" d="M2330.49,-72.17C2344.74,-85.4 2364.97,-104.19 2382.98,-120.91"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="2380.82,-123.68 2390.53,-127.92 2385.59,-118.55 2380.82,-123.68"/>
+<!-- n0&#45;&gt;n3 -->
+<g id="edge6" class="edge">
+<title>n0&#45;&gt;n3</title>
+<path fill="none" stroke="#00ff00" d="M1407.55,-280.09C1388.01,-288.45 1364.16,-297.76 1342,-304 1249.16,-330.13 1222.88,-322.68 1128,-340 1121.83,-341.13 1115.5,-342.3 1109.12,-343.51"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1108.23,-340.11 1099.06,-345.42 1109.53,-346.99 1108.23,-340.11"/>
 </g>
 <!-- n4 -->
 <g id="node5" class="node">
 <title>n4</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1848,-192C1848,-192 1676,-192 1676,-192 1670,-192 1664,-186 1664,-180 1664,-180 1664,-140 1664,-140 1664,-134 1670,-128 1676,-128 1676,-128 1848,-128 1848,-128 1854,-128 1860,-134 1860,-140 1860,-140 1860,-180 1860,-180 1860,-186 1854,-192 1848,-192"/>
-<text text-anchor="start" x="1737.27" y="-178" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Size Query</text>
-<text text-anchor="start" x="1674.48" y="-161" font-family="arial" font-size="10.00" fill="#000000">We should allow the developer to query</text>
-<text text-anchor="start" x="1685.03" y="-149" font-family="arial" font-size="10.00" fill="#000000"> the subgroup size from a compute</text>
-<text text-anchor="start" x="1742" y="-137" font-family="arial" font-size="10.00" fill="#000000"> pipeline.</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1321,-392C1321,-392 1149,-392 1149,-392 1143,-392 1137,-386 1137,-380 1137,-380 1137,-352 1137,-352 1137,-346 1143,-340 1149,-340 1149,-340 1321,-340 1321,-340 1327,-340 1333,-346 1333,-352 1333,-352 1333,-380 1333,-380 1333,-386 1327,-392 1321,-392"/>
+<text text-anchor="start" x="1193.33" y="-378" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Explicit Operations</text>
+<text text-anchor="start" x="1151.09" y="-361" font-family="arial" font-size="10.00" fill="#000000">Operations that take in active mask or</text>
+<text text-anchor="start" x="1181.65" y="-349" font-family="arial" font-size="10.00" fill="#000000"> lane index should exist.</text>
+</g>
+<!-- n0&#45;&gt;n4 -->
+<g id="edge7" class="edge">
+<title>n0&#45;&gt;n4</title>
+<path fill="none" stroke="#00ff00" d="M1409.75,-280.08C1377.82,-295.59 1332.23,-317.75 1295.62,-335.54"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1293.98,-332.44 1286.52,-339.96 1297.04,-338.74 1293.98,-332.44"/>
 </g>
 <!-- n5 -->
 <g id="node6" class="node">
 <title>n5</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M2184,-78C2184,-78 2002,-78 2002,-78 1996,-78 1990,-72 1990,-66 1990,-66 1990,-42 1990,-42 1990,-36 1996,-30 2002,-30 2002,-30 2184,-30 2184,-30 2190,-30 2196,-36 2196,-42 2196,-42 2196,-66 2196,-66 2196,-72 2190,-78 2184,-78"/>
-<text text-anchor="start" x="2068.27" y="-63" font-family="arial" font-size="10.00" fill="#000000">Vulkan has</text>
-<text text-anchor="start" x="1999.64" y="-51" font-family="arial" font-size="10.00" fill="#000000"> VK_KHR_pipeline_executable_properties</text>
-<text text-anchor="start" x="2030.76" y="-39" font-family="arial" font-size="10.00" fill="#000000"> extension to query the size.</text>
-</g>
-<!-- n5&#45;&gt;n4 -->
-<g id="edge5" class="edge">
-<title>n5&#45;&gt;n4</title>
-<path fill="none" stroke="#00ff00" d="M2024.07,-78.04C2009.85,-82.72 1994.95,-87.56 1981,-92 1944.98,-103.46 1905.51,-115.64 1870.13,-126.44"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="1868.81,-123.18 1860.26,-129.45 1870.85,-129.88 1868.81,-123.18"/>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1507,-174C1507,-174 1335,-174 1335,-174 1329,-174 1323,-168 1323,-162 1323,-162 1323,-134 1323,-134 1323,-128 1329,-122 1335,-122 1335,-122 1507,-122 1507,-122 1513,-122 1519,-128 1519,-134 1519,-134 1519,-162 1519,-162 1519,-168 1513,-174 1507,-174"/>
+<text text-anchor="start" x="1389.88" y="-160" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Host Interface</text>
+<text text-anchor="start" x="1339.31" y="-143" font-family="arial" font-size="10.00" fill="#000000">Subgroup size control and properties</text>
+<text text-anchor="start" x="1342.08" y="-131" font-family="arial" font-size="10.00" fill="#000000"> should be exposed to the host API.</text>
 </g>
 <!-- n6 -->
 <g id="node7" class="node">
 <title>n6</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1960,-72C1960,-72 1782,-72 1782,-72 1776,-72 1770,-66 1770,-60 1770,-60 1770,-48 1770,-48 1770,-42 1776,-36 1782,-36 1782,-36 1960,-36 1960,-36 1966,-36 1972,-42 1972,-48 1972,-48 1972,-60 1972,-60 1972,-66 1966,-72 1960,-72"/>
-<text text-anchor="start" x="1779.59" y="-57" font-family="arial" font-size="10.00" fill="#000000">Metal has threadExecutionWidth to query</text>
-<text text-anchor="start" x="1850.99" y="-45" font-family="arial" font-size="10.00" fill="#000000"> the size.</text>
-</g>
-<!-- n6&#45;&gt;n4 -->
-<g id="edge6" class="edge">
-<title>n6&#45;&gt;n4</title>
-<path fill="none" stroke="#00ff00" d="M1853,-72.17C1839.14,-85.4 1819.45,-104.19 1801.92,-120.91"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="1799.39,-118.49 1794.57,-127.92 1804.22,-123.55 1799.39,-118.49"/>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1293,-174C1293,-174 1117,-174 1117,-174 1111,-174 1105,-168 1105,-162 1105,-162 1105,-134 1105,-134 1105,-128 1111,-122 1117,-122 1117,-122 1293,-122 1293,-122 1299,-122 1305,-128 1305,-134 1305,-134 1305,-162 1305,-162 1305,-168 1299,-174 1293,-174"/>
+<text text-anchor="start" x="1173.05" y="-160" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Compute Only</text>
+<text text-anchor="start" x="1114.7" y="-143" font-family="arial" font-size="10.00" fill="#000000">Subgroup operations should only work in</text>
+<text text-anchor="start" x="1165.55" y="-131" font-family="arial" font-size="10.00" fill="#000000"> compute kernels.</text>
 </g>
 <!-- n7 -->
 <g id="node8" class="node">
 <title>n7</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1740,-72C1740,-72 1568,-72 1568,-72 1562,-72 1556,-66 1556,-60 1556,-60 1556,-48 1556,-48 1556,-42 1562,-36 1568,-36 1568,-36 1740,-36 1740,-36 1746,-36 1752,-42 1752,-48 1752,-48 1752,-60 1752,-60 1752,-66 1746,-72 1740,-72"/>
-<text text-anchor="start" x="1568.98" y="-57" font-family="arial" font-size="10.00" fill="#000000">D3D12 doesn&#39;t have anything to query</text>
-<text text-anchor="start" x="1620.66" y="-45" font-family="arial" font-size="10.00" fill="#000000"> the exact size.</text>
-</g>
-<!-- n7&#45;&gt;n4 -->
-<g id="edge7" class="edge">
-<title>n7&#45;&gt;n4</title>
-<path fill="none" stroke="#ff0000" d="M1671.83,-72.17C1685.57,-85.4 1705.08,-104.19 1722.44,-120.91"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="1720.1,-123.51 1729.73,-127.92 1724.95,-118.47 1720.1,-123.51"/>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M643,-286C643,-286 471,-286 471,-286 465,-286 459,-280 459,-274 459,-274 459,-246 459,-246 459,-240 465,-234 471,-234 471,-234 643,-234 643,-234 649,-234 655,-240 655,-246 655,-246 655,-274 655,-274 655,-280 649,-286 643,-286"/>
+<text text-anchor="start" x="528.67" y="-272" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Non&#45;Uniform</text>
+<text text-anchor="start" x="478.93" y="-255" font-family="arial" font-size="10.00" fill="#000000">We should support the non&#45;uniform</text>
+<text text-anchor="start" x="518.38" y="-243" font-family="arial" font-size="10.00" fill="#000000"> subgroup model.</text>
 </g>
 <!-- n8 -->
 <g id="node9" class="node">
 <title>n8</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1504.5,-186C1504.5,-186 1325.5,-186 1325.5,-186 1319.5,-186 1313.5,-180 1313.5,-174 1313.5,-174 1313.5,-146 1313.5,-146 1313.5,-140 1319.5,-134 1325.5,-134 1325.5,-134 1504.5,-134 1504.5,-134 1510.5,-134 1516.5,-140 1516.5,-146 1516.5,-146 1516.5,-174 1516.5,-174 1516.5,-180 1510.5,-186 1504.5,-186"/>
-<text text-anchor="start" x="1392.71" y="-172" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Quad Ops</text>
-<text text-anchor="start" x="1323.52" y="-155" font-family="arial" font-size="10.00" fill="#000000">We should expose the quad operations in</text>
-<text text-anchor="start" x="1373.82" y="-143" font-family="arial" font-size="10.00" fill="#000000"> fragment shaders.</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M648,-66C648,-66 468,-66 468,-66 462,-66 456,-60 456,-54 456,-54 456,-42 456,-42 456,-36 462,-30 468,-30 468,-30 648,-30 648,-30 654,-30 660,-36 660,-42 660,-42 660,-54 660,-54 660,-60 654,-66 648,-66"/>
+<text text-anchor="start" x="465.75" y="-51" font-family="arial" font-size="10.00" fill="#000000">Vulkan has weak guarantees, D3D12 and</text>
+<text text-anchor="start" x="498.26" y="-39" font-family="arial" font-size="10.00" fill="#000000"> Metal don&#39;t have anything.</text>
+</g>
+<!-- n27 -->
+<g id="node28" class="node">
+<title>n27</title>
+<path fill="#1b9e77" stroke="black" d="M425.5,-174C425.5,-174 242.5,-174 242.5,-174 236.5,-174 230.5,-168 230.5,-162 230.5,-162 230.5,-134 230.5,-134 230.5,-128 236.5,-122 242.5,-122 242.5,-122 425.5,-122 425.5,-122 431.5,-122 437.5,-128 437.5,-134 437.5,-134 437.5,-162 437.5,-162 437.5,-168 431.5,-174 425.5,-174"/>
+<text text-anchor="start" x="273.09" y="-160" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Reconvergence</text>
+<text text-anchor="start" x="249.2" y="-143" font-family="arial" font-size="10.00" fill="#000000">once invocations diverge, what are the</text>
+<text text-anchor="start" x="240.58" y="-131" font-family="arial" font-size="10.00" fill="#000000"> guarantees about where you reconverge?</text>
+</g>
+<!-- n8&#45;&gt;n27 -->
+<g id="edge23" class="edge">
+<title>n8&#45;&gt;n27</title>
+<path fill="none" stroke="#00ff00" d="M518.98,-66.07C486.51,-80.28 439.55,-100.82 401.06,-117.66"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="399.24,-114.64 391.48,-121.85 402.04,-121.05 399.24,-114.64"/>
 </g>
 <!-- n9 -->
 <g id="node10" class="node">
 <title>n9</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1311.5,-72C1311.5,-72 1118.5,-72 1118.5,-72 1112.5,-72 1106.5,-66 1106.5,-60 1106.5,-60 1106.5,-48 1106.5,-48 1106.5,-42 1112.5,-36 1118.5,-36 1118.5,-36 1311.5,-36 1311.5,-36 1317.5,-36 1323.5,-42 1323.5,-48 1323.5,-48 1323.5,-60 1323.5,-60 1323.5,-66 1317.5,-72 1311.5,-72"/>
-<text text-anchor="start" x="1116.87" y="-57" font-family="arial" font-size="10.00" fill="#000000">new Adreno and PowerVR hardware doesn&#39;t</text>
-<text text-anchor="start" x="1188.27" y="-45" font-family="arial" font-size="10.00" fill="#000000"> support this</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M425.5,-72C425.5,-72 242.5,-72 242.5,-72 236.5,-72 230.5,-66 230.5,-60 230.5,-60 230.5,-36 230.5,-36 230.5,-30 236.5,-24 242.5,-24 242.5,-24 425.5,-24 425.5,-24 431.5,-24 437.5,-30 437.5,-36 437.5,-36 437.5,-60 437.5,-60 437.5,-66 431.5,-72 425.5,-72"/>
+<text text-anchor="start" x="260.04" y="-57" font-family="arial" font-size="10.00" fill="#000000">we can just say invocations never</text>
+<text text-anchor="start" x="240.59" y="-45" font-family="arial" font-size="10.00" fill="#000000"> reconverge, which matches AMD ISA and</text>
+<text text-anchor="start" x="300.06" y="-33" font-family="arial" font-size="10.00" fill="#000000"> CUDA models.</text>
 </g>
-<!-- n9&#45;&gt;n8 -->
-<g id="edge9" class="edge">
-<title>n9&#45;&gt;n8</title>
-<path fill="none" stroke="#ff0000" d="M1248.03,-72.17C1277.66,-87.59 1321.83,-110.55 1357.29,-128.99"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="1356.09,-132.31 1366.57,-133.82 1359.32,-126.1 1356.09,-132.31"/>
+<!-- n9&#45;&gt;n27 -->
+<g id="edge24" class="edge">
+<title>n9&#45;&gt;n27</title>
+<path fill="none" stroke="#ff0000" d="M334,-72.22C334,-84.02 334,-98.59 334,-111.73"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="330.5,-111.88 334,-121.88 337.5,-111.88 330.5,-111.88"/>
 </g>
 <!-- n10 -->
 <g id="node11" class="node">
 <title>n10</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M628,-280C628,-280 456,-280 456,-280 450,-280 444,-274 444,-268 444,-268 444,-240 444,-240 444,-234 450,-228 456,-228 456,-228 628,-228 628,-228 634,-228 640,-234 640,-240 640,-240 640,-268 640,-268 640,-274 634,-280 628,-280"/>
-<text text-anchor="start" x="514.5" y="-266" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Non&#45;uniform</text>
-<text text-anchor="start" x="463.93" y="-249" font-family="arial" font-size="10.00" fill="#000000">We should support the non&#45;uniform</text>
-<text text-anchor="start" x="503.38" y="-237" font-family="arial" font-size="10.00" fill="#000000"> subgroup model.</text>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M200,-66C200,-66 28,-66 28,-66 22,-66 16,-60 16,-54 16,-54 16,-42 16,-42 16,-36 22,-30 28,-30 28,-30 200,-30 200,-30 206,-30 212,-36 212,-42 212,-42 212,-54 212,-54 212,-60 206,-66 200,-66"/>
+<text text-anchor="start" x="32.59" y="-51" font-family="arial" font-size="10.00" fill="#000000">D3D, Metal, and Vulkan are silent on</text>
+<text text-anchor="start" x="82.32" y="-39" font-family="arial" font-size="10.00" fill="#000000"> both of these.</text>
+</g>
+<!-- n28 -->
+<g id="node29" class="node">
+<title>n28</title>
+<path fill="#1b9e77" stroke="black" d="M200,-180C200,-180 28,-180 28,-180 22,-180 16,-174 16,-168 16,-168 16,-128 16,-128 16,-122 22,-116 28,-116 28,-116 200,-116 200,-116 206,-116 212,-122 212,-128 212,-128 212,-168 212,-168 212,-174 206,-180 200,-180"/>
+<text text-anchor="start" x="47.88" y="-166" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Forward Progress</text>
+<text text-anchor="start" x="36.48" y="-149" font-family="arial" font-size="10.00" fill="#000000">how blocks affect progress of other</text>
+<text text-anchor="start" x="31.2" y="-137" font-family="arial" font-size="10.00" fill="#000000"> blocks, and invocations within blocks</text>
+<text text-anchor="start" x="30.64" y="-125" font-family="arial" font-size="10.00" fill="#000000"> affect progress on other invocations?</text>
+</g>
+<!-- n10&#45;&gt;n28 -->
+<g id="edge26" class="edge">
+<title>n10&#45;&gt;n28</title>
+<path fill="none" stroke="#00ff00" d="M114,-66.07C114,-77 114,-91.67 114,-105.52"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="110.5,-105.88 114,-115.88 117.5,-105.88 110.5,-105.88"/>
 </g>
 <!-- n11 -->
 <g id="node12" class="node">
 <title>n11</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1076,-72C1076,-72 896,-72 896,-72 890,-72 884,-66 884,-60 884,-60 884,-48 884,-48 884,-42 890,-36 896,-36 896,-36 1076,-36 1076,-36 1082,-36 1088,-42 1088,-48 1088,-48 1088,-60 1088,-60 1088,-66 1082,-72 1076,-72"/>
-<text text-anchor="start" x="893.75" y="-57" font-family="arial" font-size="10.00" fill="#000000">Vulkan has weak guarantees, D3D12 and</text>
-<text text-anchor="start" x="926.26" y="-45" font-family="arial" font-size="10.00" fill="#000000"> Metal don&#39;t have anything.</text>
+<path fill="#1b9e77" stroke="black" d="M1749,-174C1749,-174 1569,-174 1569,-174 1563,-174 1557,-168 1557,-162 1557,-162 1557,-134 1557,-134 1557,-128 1563,-122 1569,-122 1569,-122 1749,-122 1749,-122 1755,-122 1761,-128 1761,-134 1761,-134 1761,-162 1761,-162 1761,-168 1755,-174 1749,-174"/>
+<text text-anchor="start" x="1622.05" y="-160" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Standard Library</text>
+<text text-anchor="start" x="1566.76" y="-143" font-family="arial" font-size="10.00" fill="#000000">Common across all three APIs, see #667,</text>
+<text text-anchor="start" x="1618.98" y="-131" font-family="arial" font-size="10.00" fill="#000000"> #78, and WSL#5.</text>
 </g>
-<!-- n19 -->
-<g id="node20" class="node">
-<title>n19</title>
-<path fill="#1b9e77" stroke="black" d="M1283.5,-186C1283.5,-186 1100.5,-186 1100.5,-186 1094.5,-186 1088.5,-180 1088.5,-174 1088.5,-174 1088.5,-146 1088.5,-146 1088.5,-140 1094.5,-134 1100.5,-134 1100.5,-134 1283.5,-134 1283.5,-134 1289.5,-134 1295.5,-140 1295.5,-146 1295.5,-146 1295.5,-174 1295.5,-174 1295.5,-180 1289.5,-186 1283.5,-186"/>
-<text text-anchor="start" x="1131.09" y="-172" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Reconvergence</text>
-<text text-anchor="start" x="1107.2" y="-155" font-family="arial" font-size="10.00" fill="#000000">once invocations diverge, what are the</text>
-<text text-anchor="start" x="1098.58" y="-143" font-family="arial" font-size="10.00" fill="#000000"> guarantees about where you reconverge?</text>
-</g>
-<!-- n11&#45;&gt;n19 -->
-<g id="edge12" class="edge">
-<title>n11&#45;&gt;n19</title>
-<path fill="none" stroke="#00ff00" d="M1020.02,-72.17C1050.67,-87.65 1096.42,-110.75 1133.03,-129.23"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="1131.62,-132.44 1142.12,-133.82 1134.77,-126.19 1131.62,-132.44"/>
+<!-- n11&#45;&gt;n0 -->
+<g id="edge1" class="edge">
+<title>n11&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1611.08,-174.1C1576.08,-192.43 1528.92,-217.14 1494.49,-235.17"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1492.82,-232.1 1485.59,-239.84 1496.07,-238.3 1492.82,-232.1"/>
 </g>
 <!-- n12 -->
 <g id="node13" class="node">
 <title>n12</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M853.5,-78C853.5,-78 670.5,-78 670.5,-78 664.5,-78 658.5,-72 658.5,-66 658.5,-66 658.5,-42 658.5,-42 658.5,-36 664.5,-30 670.5,-30 670.5,-30 853.5,-30 853.5,-30 859.5,-30 865.5,-36 865.5,-42 865.5,-42 865.5,-66 865.5,-66 865.5,-72 859.5,-78 853.5,-78"/>
-<text text-anchor="start" x="688.04" y="-63" font-family="arial" font-size="10.00" fill="#000000">we can just say invocations never</text>
-<text text-anchor="start" x="668.59" y="-51" font-family="arial" font-size="10.00" fill="#000000"> reconverge, which matches AMD ISA and</text>
-<text text-anchor="start" x="728.06" y="-39" font-family="arial" font-size="10.00" fill="#000000"> CUDA models.</text>
+<path fill="#1b9e77" stroke="black" d="M2177,-180C2177,-180 2005,-180 2005,-180 1999,-180 1993,-174 1993,-168 1993,-168 1993,-128 1993,-128 1993,-122 1999,-116 2005,-116 2005,-116 2177,-116 2177,-116 2183,-116 2189,-122 2189,-128 2189,-128 2189,-168 2189,-168 2189,-174 2183,-180 2177,-180"/>
+<text text-anchor="start" x="2062.39" y="-166" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Performance</text>
+<text text-anchor="start" x="2004.86" y="-149" font-family="arial" font-size="10.00" fill="#000000">Proven contribution to general purpose</text>
+<text text-anchor="start" x="2007.66" y="-137" font-family="arial" font-size="10.00" fill="#000000"> algorithms to make them run multiple</text>
+<text text-anchor="start" x="2062.39" y="-125" font-family="arial" font-size="10.00" fill="#000000"> times faster.</text>
 </g>
-<!-- n12&#45;&gt;n19 -->
-<g id="edge13" class="edge">
-<title>n12&#45;&gt;n19</title>
-<path fill="none" stroke="#ff0000" d="M826.97,-78.02C842.58,-83.06 859.28,-88.06 875,-92 964.31,-114.38 989.18,-107.8 1079,-128 1083.9,-129.1 1088.9,-130.28 1093.95,-131.51"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="1093.13,-134.91 1103.68,-133.93 1094.82,-128.12 1093.13,-134.91"/>
+<!-- n12&#45;&gt;n0 -->
+<g id="edge2" class="edge">
+<title>n12&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1992.93,-178.23C1989.93,-178.86 1986.95,-179.45 1984,-180 1796.29,-214.73 1741.73,-171.92 1556,-216 1536.44,-220.64 1515.77,-228.26 1497.86,-235.8"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1496.01,-232.78 1488.22,-239.96 1498.79,-239.21 1496.01,-232.78"/>
 </g>
 <!-- n13 -->
 <g id="node14" class="node">
 <title>n13</title>
-<path fill="white" stroke="#1b9e77" stroke-width="2" d="M628,-72C628,-72 456,-72 456,-72 450,-72 444,-66 444,-60 444,-60 444,-48 444,-48 444,-42 450,-36 456,-36 456,-36 628,-36 628,-36 634,-36 640,-42 640,-48 640,-48 640,-60 640,-60 640,-66 634,-72 628,-72"/>
-<text text-anchor="start" x="460.59" y="-57" font-family="arial" font-size="10.00" fill="#000000">D3D, Metal, and Vulkan are silent on</text>
-<text text-anchor="start" x="510.32" y="-45" font-family="arial" font-size="10.00" fill="#000000"> both of these.</text>
+<path fill="#1b9e77" stroke="black" d="M1963,-174C1963,-174 1791,-174 1791,-174 1785,-174 1779,-168 1779,-162 1779,-162 1779,-134 1779,-134 1779,-128 1785,-122 1791,-122 1791,-122 1963,-122 1963,-122 1969,-122 1975,-128 1975,-134 1975,-134 1975,-162 1975,-162 1975,-168 1969,-174 1963,-174"/>
+<text text-anchor="start" x="1863.11" y="-160" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Viable</text>
+<text text-anchor="start" x="1800.03" y="-143" font-family="arial" font-size="10.00" fill="#000000">There is a safe subset of subgroup</text>
+<text text-anchor="start" x="1850.88" y="-131" font-family="arial" font-size="10.00" fill="#000000"> operations.</text>
 </g>
-<!-- n20 -->
-<g id="node21" class="node">
-<title>n20</title>
-<path fill="#1b9e77" stroke="black" d="M1058,-192C1058,-192 886,-192 886,-192 880,-192 874,-186 874,-180 874,-180 874,-140 874,-140 874,-134 880,-128 886,-128 886,-128 1058,-128 1058,-128 1064,-128 1070,-134 1070,-140 1070,-140 1070,-180 1070,-180 1070,-186 1064,-192 1058,-192"/>
-<text text-anchor="start" x="905.88" y="-178" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Forward Progress</text>
-<text text-anchor="start" x="894.48" y="-161" font-family="arial" font-size="10.00" fill="#000000">how blocks affect progress of other</text>
-<text text-anchor="start" x="889.2" y="-149" font-family="arial" font-size="10.00" fill="#000000"> blocks, and invocations within blocks</text>
-<text text-anchor="start" x="888.64" y="-137" font-family="arial" font-size="10.00" fill="#000000"> affect progress on other invocations?</text>
-</g>
-<!-- n13&#45;&gt;n20 -->
-<g id="edge15" class="edge">
-<title>n13&#45;&gt;n20</title>
-<path fill="none" stroke="#00ff00" d="M586.01,-72.07C605.14,-79.01 627.95,-86.64 649,-92 742.89,-115.91 769.51,-106.6 864,-128 864.1,-128.02 864.2,-128.05 864.3,-128.07"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="863.29,-131.43 873.82,-130.31 864.89,-124.61 863.29,-131.43"/>
+<!-- n13&#45;&gt;n0 -->
+<g id="edge3" class="edge">
+<title>n13&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1794.01,-174.06C1785.93,-176.19 1777.83,-178.21 1770,-180 1675.97,-201.46 1648.84,-189.87 1556,-216 1537.3,-221.26 1517.4,-228.71 1499.91,-235.94"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1498.31,-232.81 1490.45,-239.91 1501.03,-239.26 1498.31,-232.81"/>
 </g>
 <!-- n14 -->
 <g id="node15" class="node">
 <title>n14</title>
-<path fill="#1b9e77" stroke="black" d="M414,-86C414,-86 242,-86 242,-86 236,-86 230,-80 230,-74 230,-74 230,-34 230,-34 230,-28 236,-22 242,-22 242,-22 414,-22 414,-22 420,-22 426,-28 426,-34 426,-34 426,-74 426,-74 426,-80 420,-86 414,-86"/>
-<text text-anchor="start" x="299.38" y="-72" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Performance</text>
-<text text-anchor="start" x="254.08" y="-55" font-family="arial" font-size="10.00" fill="#000000">depending on a workload and the</text>
-<text text-anchor="start" x="265.77" y="-43" font-family="arial" font-size="10.00" fill="#000000"> platform, it&#39;s possible to run</text>
-<text text-anchor="start" x="280.78" y="-31" font-family="arial" font-size="10.00" fill="#000000"> multiple times faster.</text>
+<path fill="#1b9e77" stroke="black" d="M1749,-286C1749,-286 1577,-286 1577,-286 1571,-286 1565,-280 1565,-274 1565,-274 1565,-246 1565,-246 1565,-240 1571,-234 1577,-234 1577,-234 1749,-234 1749,-234 1755,-234 1761,-240 1761,-246 1761,-246 1761,-274 1761,-274 1761,-280 1755,-286 1749,-286"/>
+<text text-anchor="start" x="1648.55" y="-272" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Target</text>
+<text text-anchor="start" x="1578.53" y="-255" font-family="arial" font-size="10.00" fill="#000000">Subgroup operations are not available</text>
+<text text-anchor="start" x="1589.38" y="-243" font-family="arial" font-size="10.00" fill="#000000"> on all WebGPU target hardware.</text>
 </g>
-<!-- n14&#45;&gt;n0 -->
-<g id="edge1" class="edge">
-<title>n14&#45;&gt;n0</title>
-<path fill="none" stroke="#00ff00" d="M413.76,-86.05C420.9,-88.21 428.05,-90.23 435,-92 528.45,-115.84 554.94,-106.66 649,-128 653.69,-129.06 658.47,-130.21 663.29,-131.41"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="662.67,-134.86 673.22,-133.95 664.4,-128.08 662.67,-134.86"/>
+<!-- n14&#45;&gt;n1 -->
+<g id="edge8" class="edge">
+<title>n14&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M1637.1,-286.18C1622.75,-300.12 1604.75,-317.62 1589.35,-332.58"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1586.77,-330.22 1582.03,-339.7 1591.64,-335.24 1586.77,-330.22"/>
 </g>
 <!-- n15 -->
 <g id="node16" class="node">
 <title>n15</title>
-<path fill="#1b9e77" stroke="black" d="M200,-80C200,-80 28,-80 28,-80 22,-80 16,-74 16,-68 16,-68 16,-40 16,-40 16,-34 22,-28 28,-28 28,-28 200,-28 200,-28 206,-28 212,-34 212,-40 212,-40 212,-68 212,-68 212,-74 206,-80 200,-80"/>
-<text text-anchor="start" x="96.49" y="-66" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Support</text>
-<text text-anchor="start" x="32.59" y="-49" font-family="arial" font-size="10.00" fill="#000000">all 3 target APIs have some variation</text>
-<text text-anchor="start" x="36.2" y="-37" font-family="arial" font-size="10.00" fill="#000000"> of subgroup operations, optionally.</text>
+<path fill="#1b9e77" stroke="black" d="M1748,-74C1748,-74 1576,-74 1576,-74 1570,-74 1564,-68 1564,-62 1564,-62 1564,-34 1564,-34 1564,-28 1570,-22 1576,-22 1576,-22 1748,-22 1748,-22 1754,-22 1760,-28 1760,-34 1760,-34 1760,-62 1760,-62 1760,-68 1754,-74 1748,-74"/>
+<text text-anchor="start" x="1620.05" y="-60" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Pipeline Properties</text>
+<text text-anchor="start" x="1574.76" y="-43" font-family="arial" font-size="10.00" fill="#000000">Exact subgroup size can&#39;t be queried in</text>
+<text text-anchor="start" x="1635.89" y="-31" font-family="arial" font-size="10.00" fill="#000000"> DirectX 12.</text>
 </g>
-<!-- n15&#45;&gt;n0 -->
-<g id="edge2" class="edge">
-<title>n15&#45;&gt;n0</title>
-<path fill="none" stroke="#00ff00" d="M178.05,-80.04C192.03,-84.69 206.87,-89.01 221,-92 407.76,-131.5 461.25,-93.5 649,-128 654.72,-129.05 660.56,-130.28 666.43,-131.62"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="665.78,-135.06 676.32,-133.99 667.41,-128.26 665.78,-135.06"/>
+<!-- n15&#45;&gt;n5 -->
+<g id="edge9" class="edge">
+<title>n15&#45;&gt;n5</title>
+<path fill="none" stroke="#ff0000" d="M1600.25,-74.11C1567.23,-87.54 1526.43,-104.13 1492.09,-118.09"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1490.53,-114.95 1482.59,-121.96 1493.17,-121.43 1490.53,-114.95"/>
 </g>
 <!-- n16 -->
 <g id="node17" class="node">
 <title>n16</title>
-<path fill="#1b9e77" stroke="black" d="M1526,-92C1526,-92 1354,-92 1354,-92 1348,-92 1342,-86 1342,-80 1342,-80 1342,-28 1342,-28 1342,-22 1348,-16 1354,-16 1354,-16 1526,-16 1526,-16 1532,-16 1538,-22 1538,-28 1538,-28 1538,-80 1538,-80 1538,-86 1532,-92 1526,-92"/>
-<text text-anchor="start" x="1422.22" y="-78" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Useless</text>
-<text text-anchor="start" x="1369.7" y="-61" font-family="arial" font-size="10.00" fill="#000000">it&#39;s not actionable in Vulkan and</text>
-<text text-anchor="start" x="1361.38" y="-49" font-family="arial" font-size="10.00" fill="#000000"> D3D12, unlike Metal where we can</text>
-<text text-anchor="start" x="1360.54" y="-37" font-family="arial" font-size="10.00" fill="#000000"> control the workgroup size from the</text>
-<text text-anchor="start" x="1429.16" y="-25" font-family="arial" font-size="10.00" fill="#000000"> API.</text>
+<path fill="#1b9e77" stroke="black" d="M1320,-74C1320,-74 1148,-74 1148,-74 1142,-74 1136,-68 1136,-62 1136,-62 1136,-34 1136,-34 1136,-28 1142,-22 1148,-22 1148,-22 1320,-22 1320,-22 1326,-22 1332,-28 1332,-34 1332,-34 1332,-62 1332,-62 1332,-68 1326,-74 1320,-74"/>
+<text text-anchor="start" x="1206.78" y="-60" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Size Control</text>
+<text text-anchor="start" x="1169.82" y="-43" font-family="arial" font-size="10.00" fill="#000000">Only possible for Vulkan with</text>
+<text text-anchor="start" x="1158.98" y="-31" font-family="arial" font-size="10.00" fill="#000000"> VK_EXT_subgroup_size_control.</text>
 </g>
-<!-- n16&#45;&gt;n4 -->
-<g id="edge8" class="edge">
-<title>n16&#45;&gt;n4</title>
-<path fill="none" stroke="#ff0000" d="M1538.21,-89.09C1541.17,-90.08 1544.11,-91.05 1547,-92 1581.8,-103.44 1619.92,-115.48 1654.28,-126.14"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="1653.28,-129.5 1663.86,-129.12 1655.35,-122.81 1653.28,-129.5"/>
+<!-- n16&#45;&gt;n5 -->
+<g id="edge10" class="edge">
+<title>n16&#45;&gt;n5</title>
+<path fill="none" stroke="#ff0000" d="M1282.16,-74.24C1307.13,-87.33 1337.8,-103.4 1363.96,-117.11"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1362.52,-120.31 1373.01,-121.85 1365.77,-114.11 1362.52,-120.31"/>
 </g>
 <!-- n17 -->
 <g id="node18" class="node">
 <title>n17</title>
-<path fill="#1b9e77" stroke="black" d="M628,-186C628,-186 456,-186 456,-186 450,-186 444,-180 444,-174 444,-174 444,-146 444,-146 444,-140 450,-134 456,-134 456,-134 628,-134 628,-134 634,-134 640,-140 640,-146 640,-146 640,-174 640,-174 640,-180 634,-186 628,-186"/>
-<text text-anchor="start" x="515.61" y="-172" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Everywhere</text>
-<text text-anchor="start" x="475.59" y="-155" font-family="arial" font-size="10.00" fill="#000000">Vulkan, D3D, and Metal use a</text>
-<text text-anchor="start" x="497.55" y="-143" font-family="arial" font-size="10.00" fill="#000000"> non&#45;uniform model.</text>
+<path fill="#1b9e77" stroke="black" d="M1106,-74C1106,-74 934,-74 934,-74 928,-74 922,-68 922,-62 922,-62 922,-34 922,-34 922,-28 928,-22 934,-22 934,-22 1106,-22 1106,-22 1112,-22 1118,-28 1118,-34 1118,-34 1118,-62 1118,-62 1118,-68 1112,-74 1106,-74"/>
+<text text-anchor="start" x="998.33" y="-60" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Hardware</text>
+<text text-anchor="start" x="936.93" y="-43" font-family="arial" font-size="10.00" fill="#000000">Restricting to compute only increases</text>
+<text text-anchor="start" x="969.99" y="-31" font-family="arial" font-size="10.00" fill="#000000"> market (e.g., Adreno).</text>
 </g>
-<!-- n17&#45;&gt;n10 -->
-<g id="edge10" class="edge">
-<title>n17&#45;&gt;n10</title>
-<path fill="none" stroke="#00ff00" d="M542,-186.14C542,-195.88 542,-207.19 542,-217.72"/>
-<polygon fill="#00ff00" stroke="#00ff00" points="538.5,-217.89 542,-227.89 545.5,-217.89 538.5,-217.89"/>
+<!-- n17&#45;&gt;n6 -->
+<g id="edge11" class="edge">
+<title>n17&#45;&gt;n6</title>
+<path fill="none" stroke="#00ff00" d="M1067.64,-74.24C1092.35,-87.33 1122.69,-103.4 1148.57,-117.11"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1147.04,-120.26 1157.52,-121.85 1150.32,-114.07 1147.04,-120.26"/>
 </g>
 <!-- n18 -->
 <g id="node19" class="node">
 <title>n18</title>
-<path fill="#1b9e77" stroke="black" d="M414,-192C414,-192 242,-192 242,-192 236,-192 230,-186 230,-180 230,-180 230,-140 230,-140 230,-134 236,-128 242,-128 242,-128 414,-128 414,-128 420,-128 426,-134 426,-140 426,-140 426,-180 426,-180 426,-186 420,-192 414,-192"/>
-<text text-anchor="start" x="276.32" y="-178" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Divergence</text>
-<text text-anchor="start" x="249.37" y="-161" font-family="arial" font-size="10.00" fill="#000000">when invocations in a subgroup are</text>
-<text text-anchor="start" x="244.42" y="-149" font-family="arial" font-size="10.00" fill="#000000"> executing &quot;together&quot;, how long is that</text>
-<text text-anchor="start" x="298.54" y="-137" font-family="arial" font-size="10.00" fill="#000000"> guaranteed?</text>
+<path fill="#1b9e77" stroke="black" d="M1534,-80C1534,-80 1362,-80 1362,-80 1356,-80 1350,-74 1350,-68 1350,-68 1350,-28 1350,-28 1350,-22 1356,-16 1362,-16 1362,-16 1534,-16 1534,-16 1540,-16 1546,-22 1546,-28 1546,-28 1546,-68 1546,-68 1546,-74 1540,-80 1534,-80"/>
+<text text-anchor="start" x="1427.16" y="-66" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Definition</text>
+<text text-anchor="start" x="1375.76" y="-49" font-family="arial" font-size="10.00" fill="#000000">Operations are better defined for</text>
+<text text-anchor="start" x="1365.75" y="-37" font-family="arial" font-size="10.00" fill="#000000"> compute. And this makes concern of</text>
+<text text-anchor="start" x="1382.99" y="-25" font-family="arial" font-size="10.00" fill="#000000"> helper invocations irrelevant.</text>
 </g>
-<!-- n18&#45;&gt;n10 -->
-<g id="edge11" class="edge">
-<title>n18&#45;&gt;n10</title>
-<path fill="none" stroke="#ff0000" d="M400.15,-192.02C424.15,-202.33 450.77,-213.78 474.4,-223.94"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="473.08,-227.18 483.65,-227.91 475.84,-220.75 473.08,-227.18"/>
+<!-- n18&#45;&gt;n6 -->
+<g id="edge13" class="edge">
+<title>n18&#45;&gt;n6</title>
+<path fill="none" stroke="#00ff00" d="M1371.11,-80.01C1340.88,-92.2 1306.36,-106.12 1276.65,-118.1"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1275.15,-114.94 1267.18,-121.92 1277.77,-121.43 1275.15,-114.94"/>
 </g>
-<!-- n19&#45;&gt;n10 -->
+<!-- n18&#45;&gt;n13 -->
+<g id="edge12" class="edge">
+<title>n18&#45;&gt;n13</title>
+<path fill="none" stroke="#00ff00" d="M1546.13,-77.91C1549.12,-78.64 1552.08,-79.33 1555,-80 1649.47,-101.52 1675.53,-94.48 1770,-116 1774.65,-117.06 1779.39,-118.2 1784.17,-119.4"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1783.45,-122.83 1794.01,-121.93 1785.2,-116.05 1783.45,-122.83"/>
+</g>
+<!-- n19 -->
+<g id="node20" class="node">
+<title>n19</title>
+<path fill="#1b9e77" stroke="black" d="M1963,-286C1963,-286 1791,-286 1791,-286 1785,-286 1779,-280 1779,-274 1779,-274 1779,-246 1779,-246 1779,-240 1785,-234 1791,-234 1791,-234 1963,-234 1963,-234 1969,-234 1975,-240 1975,-246 1975,-246 1975,-274 1975,-274 1975,-280 1969,-286 1963,-286"/>
+<text text-anchor="start" x="1853.66" y="-272" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">DirectX 12</text>
+<text text-anchor="start" x="1807.82" y="-255" font-family="arial" font-size="10.00" fill="#000000">DirectX 12 doesn&#39;t have shuffle</text>
+<text text-anchor="start" x="1850.88" y="-243" font-family="arial" font-size="10.00" fill="#000000"> operations.</text>
+</g>
+<!-- n19&#45;&gt;n2 -->
 <g id="edge14" class="edge">
-<title>n19&#45;&gt;n10</title>
-<path fill="none" stroke="#ff0000" d="M1106.26,-186.01C1097.1,-188.23 1087.89,-190.29 1079,-192 931.81,-220.37 759.19,-237.09 650.21,-245.65"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="649.89,-242.16 640.19,-246.43 650.43,-249.14 649.89,-242.16"/>
+<title>n19&#45;&gt;n2</title>
+<path fill="none" stroke="#ff0000" d="M1877,-286.18C1877,-299.24 1877,-315.41 1877,-329.7"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1873.5,-329.7 1877,-339.7 1880.5,-329.7 1873.5,-329.7"/>
 </g>
-<!-- n20&#45;&gt;n10 -->
-<g id="edge16" class="edge">
-<title>n20&#45;&gt;n10</title>
-<path fill="none" stroke="#ff0000" d="M873.8,-189.6C870.5,-190.43 867.23,-191.23 864,-192 793.2,-208.83 712.76,-224.07 650,-235.11"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="649.33,-231.67 640.08,-236.84 650.53,-238.57 649.33,-231.67"/>
+<!-- n20 -->
+<g id="node21" class="node">
+<title>n20</title>
+<path fill="#1b9e77" stroke="black" d="M2177,-286C2177,-286 2005,-286 2005,-286 1999,-286 1993,-280 1993,-274 1993,-274 1993,-246 1993,-246 1993,-240 1999,-234 2005,-234 2005,-234 2177,-234 2177,-234 2183,-234 2189,-240 2189,-246 2189,-246 2189,-274 2189,-274 2189,-280 2183,-286 2177,-286"/>
+<text text-anchor="start" x="2056" y="-272" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Narrow Support</text>
+<text text-anchor="start" x="2003.48" y="-255" font-family="arial" font-size="10.00" fill="#000000">Not having shuffle operations increases</text>
+<text text-anchor="start" x="2044.61" y="-243" font-family="arial" font-size="10.00" fill="#000000"> support (e.g., ARM).</text>
+</g>
+<!-- n20&#45;&gt;n2 -->
+<g id="edge15" class="edge">
+<title>n20&#45;&gt;n2</title>
+<path fill="none" stroke="#ff0000" d="M2039.47,-286.04C2008.85,-300.92 1969.86,-319.87 1937.75,-335.48"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1935.92,-332.48 1928.45,-339.99 1938.98,-338.77 1935.92,-332.48"/>
 </g>
 <!-- n21 -->
 <g id="node22" class="node">
 <title>n21</title>
-<path fill="#1b9e77" stroke="black" d="M200,-186C200,-186 28,-186 28,-186 22,-186 16,-180 16,-174 16,-174 16,-146 16,-146 16,-140 22,-134 28,-134 28,-134 200,-134 200,-134 206,-134 212,-140 212,-146 212,-146 212,-174 212,-174 212,-180 206,-186 200,-186"/>
-<text text-anchor="start" x="70.38" y="-172" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Helpers</text>
-<text text-anchor="start" x="37.04" y="-155" font-family="arial" font-size="10.00" fill="#000000">do helper invocations participate in</text>
-<text text-anchor="start" x="64.26" y="-143" font-family="arial" font-size="10.00" fill="#000000"> subgroup operations?</text>
+<path fill="#1b9e77" stroke="black" d="M873,-286C873,-286 701,-286 701,-286 695,-286 689,-280 689,-274 689,-274 689,-246 689,-246 689,-240 695,-234 701,-234 701,-234 873,-234 873,-234 879,-234 885,-240 885,-246 885,-246 885,-274 885,-274 885,-280 879,-286 873,-286"/>
+<text text-anchor="start" x="751.16" y="-272" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Varying Support</text>
+<text text-anchor="start" x="715.03" y="-255" font-family="arial" font-size="10.00" fill="#000000">Not ubiquitously supported (e.g.,</text>
+<text text-anchor="start" x="761.45" y="-243" font-family="arial" font-size="10.00" fill="#000000"> PowerVR).</text>
 </g>
-<!-- n21&#45;&gt;n10 -->
+<!-- n21&#45;&gt;n3 -->
+<g id="edge16" class="edge">
+<title>n21&#45;&gt;n3</title>
+<path fill="none" stroke="#ff0000" d="M838.53,-286.04C869.15,-300.92 908.14,-319.87 940.25,-335.48"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="939.02,-338.77 949.55,-339.99 942.08,-332.48 939.02,-338.77"/>
+</g>
+<!-- n22 -->
+<g id="node23" class="node">
+<title>n22</title>
+<path fill="#1b9e77" stroke="black" d="M1087,-298C1087,-298 915,-298 915,-298 909,-298 903,-292 903,-286 903,-286 903,-234 903,-234 903,-228 909,-222 915,-222 915,-222 1087,-222 1087,-222 1093,-222 1099,-228 1099,-234 1099,-234 1099,-286 1099,-286 1099,-292 1093,-298 1087,-298"/>
+<text text-anchor="start" x="952.65" y="-284" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Quadgroup Extension</text>
+<text text-anchor="start" x="917.92" y="-267" font-family="arial" font-size="10.00" fill="#000000">If quad operations are made into their</text>
+<text text-anchor="start" x="928.48" y="-255" font-family="arial" font-size="10.00" fill="#000000"> own extension, both its potential</text>
+<text text-anchor="start" x="916.54" y="-243" font-family="arial" font-size="10.00" fill="#000000"> market becomes larger and subgroup</text>
+<text text-anchor="start" x="942.39" y="-231" font-family="arial" font-size="10.00" fill="#000000"> operations&#39; market grows.</text>
+</g>
+<!-- n22&#45;&gt;n3 -->
 <g id="edge17" class="edge">
-<title>n21&#45;&gt;n10</title>
-<path fill="none" stroke="#ff0000" d="M197.62,-186.04C205.5,-188.15 213.38,-190.18 221,-192 291.43,-208.86 371.45,-224.07 433.98,-235.09"/>
-<polygon fill="#ff0000" stroke="#ff0000" points="433.4,-238.54 443.86,-236.82 434.61,-231.65 433.4,-238.54"/>
+<title>n22&#45;&gt;n3</title>
+<path fill="none" stroke="#ff0000" d="M1001,-298.25C1001,-308.46 1001,-319.5 1001,-329.6"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="997.5,-329.71 1001,-339.71 1004.5,-329.71 997.5,-329.71"/>
+</g>
+<!-- n23 -->
+<g id="node24" class="node">
+<title>n23</title>
+<path fill="#1b9e77" stroke="black" d="M1321,-304C1321,-304 1149,-304 1149,-304 1143,-304 1137,-298 1137,-292 1137,-292 1137,-228 1137,-228 1137,-222 1143,-216 1149,-216 1149,-216 1321,-216 1321,-216 1327,-216 1333,-222 1333,-228 1333,-228 1333,-292 1333,-292 1333,-298 1327,-304 1321,-304"/>
+<text text-anchor="start" x="1191.1" y="-290" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Undefined Behavior</text>
+<text text-anchor="start" x="1175.82" y="-273" font-family="arial" font-size="10.00" fill="#000000">Explicit operations such as</text>
+<text text-anchor="start" x="1153.86" y="-261" font-family="arial" font-size="10.00" fill="#000000"> broadcasting with index depends on</text>
+<text text-anchor="start" x="1148.87" y="-249" font-family="arial" font-size="10.00" fill="#000000"> successful query of active lanes which</text>
+<text text-anchor="start" x="1159.42" y="-237" font-family="arial" font-size="10.00" fill="#000000"> can&#39;t be guaranteed with targeted</text>
+<text text-anchor="start" x="1197.21" y="-225" font-family="arial" font-size="10.00" fill="#000000"> underlying APIs.</text>
+</g>
+<!-- n23&#45;&gt;n4 -->
+<g id="edge18" class="edge">
+<title>n23&#45;&gt;n4</title>
+<path fill="none" stroke="#ff0000" d="M1235,-304.2C1235,-312.76 1235,-321.64 1235,-329.88"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1231.5,-329.92 1235,-339.92 1238.5,-329.92 1231.5,-329.92"/>
+</g>
+<!-- n24 -->
+<g id="node25" class="node">
+<title>n24</title>
+<path fill="#1b9e77" stroke="black" d="M1964,-80C1964,-80 1790,-80 1790,-80 1784,-80 1778,-74 1778,-68 1778,-68 1778,-28 1778,-28 1778,-22 1784,-16 1790,-16 1790,-16 1964,-16 1964,-16 1970,-16 1976,-22 1976,-28 1976,-28 1976,-68 1976,-68 1976,-74 1970,-80 1964,-80"/>
+<text text-anchor="start" x="1843.66" y="-66" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Avoiding Helps</text>
+<text text-anchor="start" x="1795.32" y="-49" font-family="arial" font-size="10.00" fill="#000000">Implicitly active operations are useful</text>
+<text text-anchor="start" x="1801.42" y="-37" font-family="arial" font-size="10.00" fill="#000000"> enough while making concerns of</text>
+<text text-anchor="start" x="1787.54" y="-25" font-family="arial" font-size="10.00" fill="#000000"> divergence or reconvergence irrelevant.</text>
+</g>
+<!-- n24&#45;&gt;n4 -->
+<g id="edge20" class="edge">
+<title>n24&#45;&gt;n4</title>
+<path fill="none" stroke="#ff0000" d="M1777.95,-77.92C1774.94,-78.64 1771.95,-79.34 1769,-80 1671.89,-101.77 1623.16,-50.78 1548,-116 1525.49,-135.53 1551.19,-161.29 1528,-180 1458.54,-236.04 1188.21,-150.12 1128,-216 1101.61,-244.87 1108.35,-270.18 1128,-304 1135.13,-316.27 1145.76,-326.28 1157.59,-334.38"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1156.06,-337.56 1166.39,-339.94 1159.81,-331.64 1156.06,-337.56"/>
+</g>
+<!-- n24&#45;&gt;n13 -->
+<g id="edge19" class="edge">
+<title>n24&#45;&gt;n13</title>
+<path fill="none" stroke="#00ff00" d="M1877,-80.01C1877,-90.1 1877,-101.38 1877,-111.76"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1873.5,-111.76 1877,-121.76 1880.5,-111.76 1873.5,-111.76"/>
+</g>
+<!-- n25 -->
+<g id="node26" class="node">
+<title>n25</title>
+<path fill="#1b9e77" stroke="black" d="M646.5,-174C646.5,-174 467.5,-174 467.5,-174 461.5,-174 455.5,-168 455.5,-162 455.5,-162 455.5,-134 455.5,-134 455.5,-128 461.5,-122 467.5,-122 467.5,-122 646.5,-122 646.5,-122 652.5,-122 658.5,-128 658.5,-134 658.5,-134 658.5,-162 658.5,-162 658.5,-168 652.5,-174 646.5,-174"/>
+<text text-anchor="start" x="533.88" y="-160" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ubiquitous</text>
+<text text-anchor="start" x="465.82" y="-143" font-family="arial" font-size="10.00" fill="#000000">All WebGPU target APIs use non&#45;uniform</text>
+<text text-anchor="start" x="541.11" y="-131" font-family="arial" font-size="10.00" fill="#000000"> model.</text>
+</g>
+<!-- n25&#45;&gt;n7 -->
+<g id="edge21" class="edge">
+<title>n25&#45;&gt;n7</title>
+<path fill="none" stroke="#00ff00" d="M557,-174.24C557,-188.91 557,-207.63 557,-223.74"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="553.5,-223.88 557,-233.88 560.5,-223.88 553.5,-223.88"/>
+</g>
+<!-- n26 -->
+<g id="node27" class="node">
+<title>n26</title>
+<path fill="#1b9e77" stroke="black" d="M1075,-180C1075,-180 903,-180 903,-180 897,-180 891,-174 891,-168 891,-168 891,-128 891,-128 891,-122 897,-116 903,-116 903,-116 1075,-116 1075,-116 1081,-116 1087,-122 1087,-128 1087,-128 1087,-168 1087,-168 1087,-174 1081,-180 1075,-180"/>
+<text text-anchor="start" x="937.32" y="-166" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Divergence</text>
+<text text-anchor="start" x="910.37" y="-149" font-family="arial" font-size="10.00" fill="#000000">when invocations in a subgroup are</text>
+<text text-anchor="start" x="905.42" y="-137" font-family="arial" font-size="10.00" fill="#000000"> executing &quot;together&quot;, how long is that</text>
+<text text-anchor="start" x="959.54" y="-125" font-family="arial" font-size="10.00" fill="#000000"> guaranteed?</text>
+</g>
+<!-- n26&#45;&gt;n7 -->
+<g id="edge22" class="edge">
+<title>n26&#45;&gt;n7</title>
+<path fill="none" stroke="#ff0000" d="M890.86,-177.87C887.88,-178.61 884.92,-179.32 882,-180 793.19,-200.72 768.21,-192.88 680,-216 664.33,-220.11 647.79,-225.28 632.11,-230.61"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="630.78,-227.36 622.47,-233.94 633.06,-233.98 630.78,-227.36"/>
+</g>
+<!-- n27&#45;&gt;n7 -->
+<g id="edge25" class="edge">
+<title>n27&#45;&gt;n7</title>
+<path fill="none" stroke="#ff0000" d="M384.88,-174.1C418.16,-190.51 461.78,-212.03 496.79,-229.3"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="495.44,-232.53 505.95,-233.82 498.53,-226.26 495.44,-232.53"/>
+</g>
+<!-- n28&#45;&gt;n7 -->
+<g id="edge27" class="edge">
+<title>n28&#45;&gt;n7</title>
+<path fill="none" stroke="#ff0000" d="M212.19,-177.66C215.16,-178.46 218.1,-179.24 221,-180 296.81,-199.88 382.86,-220.07 448.89,-235.06"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="448.37,-238.53 458.9,-237.32 449.92,-231.7 448.37,-238.53"/>
+</g>
+<!-- n29 -->
+<g id="node30" class="node">
+<title>n29</title>
+<path fill="#1b9e77" stroke="black" d="M861,-174C861,-174 689,-174 689,-174 683,-174 677,-168 677,-162 677,-162 677,-134 677,-134 677,-128 683,-122 689,-122 689,-122 861,-122 861,-122 867,-122 873,-128 873,-134 873,-134 873,-162 873,-162 873,-168 867,-174 861,-174"/>
+<text text-anchor="start" x="731.38" y="-160" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ambiguous Helpers</text>
+<text text-anchor="start" x="698.04" y="-143" font-family="arial" font-size="10.00" fill="#000000">do helper invocations participate in</text>
+<text text-anchor="start" x="725.26" y="-131" font-family="arial" font-size="10.00" fill="#000000"> subgroup operations?</text>
+</g>
+<!-- n29&#45;&gt;n7 -->
+<g id="edge28" class="edge">
+<title>n29&#45;&gt;n7</title>
+<path fill="none" stroke="#ff0000" d="M725.26,-174.1C692.73,-190.51 650.08,-212.03 615.86,-229.3"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="614.25,-226.19 606.9,-233.82 617.41,-232.44 614.25,-226.19"/>
 </g>
 </g>
 </svg>
