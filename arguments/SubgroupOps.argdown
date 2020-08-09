@@ -6,48 +6,57 @@ Expose a subset of subgroup operations in WGSL shaders:
   - PR: https://github.com/gpuweb/gpuweb/pull/954
 -->
 
-[Motivation]: This PR works towards issue #667,
-              subgroup operations are common
-              across all three APIs.
-  + <Performance>: Proven contribution to
-                   general purpose algorithms.
-  + <Safe>: There is a safe subset of
-            subgroup operations.
+[Motivation]: We should have subgroup operations.
+  + <Standard Library>: Since subgroup operations are common across
+                        all three APIs, they were to be considered
+                        for [issue #667](https://github.com/gpuweb/gpuweb/issues/667).
+  + <Performance>: [Proven contribution](https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/)
+                   to general purpose algorithms.
+  + <Viable>: There is a safe subset of subgroup operations.
 
 
-[Extension]: Subgroup operations should be
-             exposed as an extension.
-  + <Target>: Subgroup operations are not available
-              on all WebGPU target hardware.
+[Extension]: Subgroup operations should be exposed as an extension.
+  + <Target>: Subgroup operations are not available on all WebGPU
+              target hardware.
 
-[Device Only]: Host statistics for subgroup
-               operations are not common
-               across all three APIs.
+[Host Interface]: Subgroup size control and statistics should be exposed.
+  - <Pipeline Statistics>: Exact subgroup size can't be queried in DirectX 12.
+  - <Size Control>: Only possible for Vulkan with
+                    [VK_EXT_subgroup_size_control](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_subgroup_size_control.html).
 
-[Compute Only]: Subgroup operations should only
-                work in compute kernels.
-  + <Hardware>: Restricting to compute only increases
-                market (e.g., Adreno).
-  + <Definition>: Operations are better defined
-                  for compute. And this makes helper
-                  invocations irrelevant.
 
-[No Shuffle Operations]: Shuffle operations should be excluded.
-  + <DirectX>: DirectX doesn't have shuffle operations.
-  + <Support>: Not having shuffle operations
-               increases support (e.g., ARM).
+[Compute Only]: Subgroup operations should only work in compute kernels.
+  + <Hardware>: Restricting to compute only increases market (e.g., Adreno).
+  + <Definition>: Operations are better defined for compute. And this
+                  makes concern of helper invocations irrelevant.
 
-[No Quad Operations]: Quad operations should be their
-                      own extension.
-  + <Market>: If quad operations are made into their
-              own extension, both its potential market
-              becomes larger and subgroup operations'
-              market grows.
+[Shuffle Operations]: There should be shuffle and relative shuffle operations.
+  - <DirectX 12>: DirectX 12 doesn't have shuffle operations.
+  - <Narrow Support>: Not having shuffle operations increases
+                      support (e.g., ARM).
 
-[No Explicit Operations]: Indexed or masked operations
-                          (e.g., `broadcast` with index)
-                          can change behavior depending on
-                          state of divergence.
-  + <Avoidable>: Implicitly active operations are useful enough
-                 while making concerns of divergence or
-                 reconvergence irrelevant.
+[Quad Operations]: Quad operations should be their own extension.
+  - <Varying Support>: Not ubiquitously supported (e.g., PowerVR).
+  - <Quadgroup Extension>: If quad operations are made into their own
+                           extension, both its potential market becomes
+                           larger and subgroup operations' market grows.
+
+[Explicit Operations]: Operations that take in active mask or lane index
+                       should exist.
+  - <Undefined Behavior>: Explicit operations such as broadcasting with
+                          index depends on successful query of active lanes
+                          which can't be guaranteed with targeted
+                          underlying APIs.
+  - <Avoiding Helps>: Implicitly active operations are useful enough
+                      while making concerns of divergence or
+                      reconvergence irrelevant.
+
+[Non-Uniform]: We should support the non-uniform subgroup model.
+  + <Ubiquitous>: All WebGPU target APIs use non-uniform model.
+  - <Ambiguous Divergence>: when invocations in a subgroup are executing "together", how long is that guaranteed?
+  - <Ambiguous Reconvergence>: once invocations diverge, what are the guarantees about where you reconverge?
+    + Vulkan has weak guarantees, D3D12 and Metal don't have anything.
+    - we can just say invocations never reconverge, which matches AMD ISA and CUDA models.
+  - <Ambiguous Forward Progress>: how blocks affect progress of other blocks, and invocations within blocks affect progress on other invocations?
+    + D3D, Metal, and Vulkan are silent on both of these.
+  - <Ambiguous Helpers>: do helper invocations participate in subgroup operations?
