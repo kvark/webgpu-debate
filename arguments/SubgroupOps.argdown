@@ -36,6 +36,7 @@ Expose a subset of subgroup operations in WGSL shaders:
   + <Hardware>: Restricting to compute only increases market (e.g., Adreno).
   + <Definition>: Operations are better defined for compute. And this
                   makes concern of helper invocations irrelevant.
+    +> <Viable>
 
 [Shuffle Operations]: There should be shuffle and relative shuffle operations.
   - <DirectX 12>: DirectX 12 doesn't have shuffle operations.
@@ -47,7 +48,6 @@ Expose a subset of subgroup operations in WGSL shaders:
   - <Quadgroup Extension>: If quad operations are made into their own
                            extension, both its potential market becomes
                            larger and subgroup operations' market grows.
-    +> <Viable>
 
 [Explicit Operations]: Operations that take in active mask or lane index
                        should exist.
