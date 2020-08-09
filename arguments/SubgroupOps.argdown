@@ -6,26 +6,62 @@ Expose a subset of subgroup operations in WGSL shaders:
   - PR: https://github.com/gpuweb/gpuweb/pull/954
 -->
 
-[Extension]: We should have an extension to expose subgroup operations.
-  + <Performance>: depending on a workload and the platform, it's possible to run [multiple times](https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/) faster.
-  + <Support>: all 3 target APIs have some variation of subgroup operations, optionally.
+[Motivation]: We should have subgroup operations.
+  + <Standard Library>: Common across all three APIs, see
+                        [#667](https://github.com/gpuweb/gpuweb/issues/667),
+                        [#78](https://github.com/gpuweb/gpuweb/issues/78), and
+                        [WSL#5](https://github.com/gpuweb/WSL/issues/5).
+  + <Performance>: Proven contribution to general purpose algorithms to make
+                   them run [multiple times](https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/)
+                   faster.
+  + <Viable>: There is a safe subset of subgroup operations.
+  +> [Extension]
+  +> [Shuffle Operations]
+  +> [Quad Operations]
+  +> [Explicit Operations]
 
-[Size Control]: We should let the developer to control the size of subgroups (in compute workloads).
-  + Vulkan has [VK_EXT_subgroup_size_control](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_subgroup_size_control.html) extension to control the size.
-  - D3D12 and Metal don't allow to control the size.
 
-[Size Query]: We should allow the developer to query the subgroup size from a compute pipeline.
-  + Vulkan has [VK_KHR_pipeline_executable_properties](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_KHR_pipeline_executable_properties.html) extension to query the size.
-  + Metal has [threadExecutionWidth](https://developer.apple.com/documentation/metal/mtlcomputepipelinestate/1414911-threadexecutionwidth) to query the size.
-  - D3D12 doesn't have anything to query the exact size.
-  - <Useless>: it's not actionable in Vulkan and D3D12, unlike Metal where we can control the workgroup size from the API.
+[Extension]: Subgroup operations should be exposed as an extension.
+  + <Target>: Subgroup operations are not available on all WebGPU
+              target hardware.
 
-[Quad Ops]: We should expose the quad operations in fragment shaders.
-  - new Adreno and PowerVR hardware doesn't support this
-//TODO: fill this out more
+[Host Interface]: Subgroup size control and properties should be exposed
+                  to the host API.
+  - <Pipeline Properties>: Exact subgroup size can't be queried in DirectX 12.
+  - <Size Control>: Only possible for Vulkan with
+                    [VK_EXT_subgroup_size_control](https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VK_EXT_subgroup_size_control.html).
 
-[Non-uniform]: We should support the non-uniform subgroup model.
-  + <Everywhere>: Vulkan, D3D, and Metal use a non-uniform model.
+
+[Compute Only]: Subgroup operations should only work in compute kernels.
+  + <Hardware>: Restricting to compute only increases market (e.g., Adreno).
+  + <Definition>: Operations are better defined for compute. And this
+                  makes concern of helper invocations irrelevant.
+    +> <Viable>
+
+[Shuffle Operations]: There should be shuffle and relative shuffle operations.
+  - <DirectX 12>: DirectX 12 doesn't have shuffle operations.
+  - <Narrow Support>: Not having shuffle operations increases
+                      support (e.g., ARM).
+
+[Quad Operations]: Quad operations should be their own extension.
+  - <Varying Support>: Not ubiquitously supported (e.g., PowerVR).
+  - <Quadgroup Extension>: If quad operations are made into their own
+                           extension, both its potential market becomes
+                           larger and subgroup operations' market grows.
+
+[Explicit Operations]: Operations that take in active mask or lane index
+                       should exist.
+  - <Undefined Behavior>: Explicit operations such as broadcasting with
+                          index depends on successful query of active lanes
+                          which can't be guaranteed with targeted
+                          underlying APIs.
+  - <Avoiding Helps>: Implicitly active operations are useful enough
+                      while making concerns of divergence or
+                      reconvergence irrelevant.
+    +> <Viable>
+
+[Non-Uniform]: We should support the non-uniform subgroup model.
+  + <Ubiquitous>: All WebGPU target APIs use non-uniform model.
   - <Ambiguous Divergence>: when invocations in a subgroup are executing "together", how long is that guaranteed?
   - <Ambiguous Reconvergence>: once invocations diverge, what are the guarantees about where you reconverge?
     + Vulkan has weak guarantees, D3D12 and Metal don't have anything.
