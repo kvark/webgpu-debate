@@ -28,9 +28,11 @@ Expose more than a single GPU queue:
 
 [Implicit Transitions]: Ownership transition can happen automatically, based on resources
                         that are used by submissions.
-  + <No Fence>: Fences are technically not needed in the API and can be removed?
   + <Easy>: Code will always work, just not always be concurrent on GPU, even if
             the developer submits work to different queues.
+  +> [WebGPU doesn't need fences]
+
+[WebGPU doesn't need fences]: Fences are technically not needed in the API and can be removed?
 
 [Optional Transitions]: Allow the developer to specify an ownership transition ahead of time.
   +> [Implicit Transitions]
@@ -42,6 +44,8 @@ Expose more than a single GPU queue:
   - <Racy>: Changing the order of submissions may result in a synchronization error.
             If submissions are triggered by external events (e.g. touch), this
             may be a hidden even race and a footgun in an otherwise correct application.
+    - <Logic>: If the order of submission is unexpected, that would likely end up with
+               incorrect rendering anyway. So maybe it's fine to disallow that?
   -> [Optional Transitions]
 
 <Skip Submit>: on Vulkan, we can avoid submitting an empty command buffer with the
