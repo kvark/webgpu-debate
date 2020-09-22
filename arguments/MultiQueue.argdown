@@ -1,0 +1,55 @@
+## Multiple GPU Queues
+<!--
+Expose more than a single GPU queue:
+  - investigation: https://github.com/gpuweb/gpuweb/issues/1065
+  - proposal-1: https://github.com/gpuweb/gpuweb/issues/1066
+  - proposal-2: https://github.com/gpuweb/gpuweb/issues/1073
+-->
+
+[Expose API]: We should expose multiple queues with different capabilities.
+  + <API Support>: Common across all three APIs
+               (Metal starting with version 2, where `MTLEvent` got introduced).
+  + <Performance>: Async compute and transfers are established best practices on
+                   the last-gen console hardware (PS4 and XB1).
+                   See [AMD presentation](https://gpuopen.com/wp-content/uploads/2017/03/GDC2017-Asynchronous-Compute-Deep-Dive.pdf).
+  + <Viable>: Investigation showed that we can safely track the ownership of resources
+              by the queues, and insert the necessary pipeline barriers, making this safe.
+  +> [Implicit Transitions]
+  +> [Required Transitions]
+
+[Fully Internal]: WebGPU should internally use multiple queues but not necessarily
+                  expose them to the user.
+  + <Simple>: Simplest to use.
+  - <Ineffective>: WebGPU doesn't know resource dependencies ahead of time, so finding
+                   the efficient scheduling route is hard. It's likely to synchronize
+                   more than necessary.
+  + <Metal>: this is what Metal-1 does in the drivers/run-time.
+  -> [Expose API]
+
+[Implicit Transitions]: Ownership transition can happen automatically, based on resources
+                        that are used by submissions.
+  + <No Fence>: Fences are technically not needed in the API and can be removed?
+  + <Easy>: Code will always work, just not always be concurrent on GPU, even if
+            the developer submits work to different queues.
+
+[Optional Transitions]: Allow the developer to specify an ownership transition ahead of time.
+  +> [Implicit Transitions]
+
+[Required Transitions]: Require the developer to transition ownership explicitly.
+  + <Explicit>: Allows the developer to reason about concurrent GPU processing.
+                Since the developers are not required to use the multiple queues,
+                they want to be sure it works as expected if they do use it.
+  - <Racy>: Changing the order of submissions may result in a synchronization error.
+            If submissions are triggered by external events (e.g. touch), this
+            may be a hidden even race and a footgun in an otherwise correct application.
+  -> [Optional Transitions]
+
+<Skip Submit>: on Vulkan, we can avoid submitting an empty command buffer with the
+               semaphore and a pipeline barrier.
+  +> [Optional Transitions]
+  +> [Required Transitions]
+
+[Concurrent Textures]: We should support textures that are used concurrently on multiple queues.
+  + <Texture Support>: At least D3D12 and Vulkan have explicit opt-in for this behavior.
+  - <Cost>: There are clear pefromance costs for having this ability on a texture. It's not able
+            to use specific texture states and layouts, and can't use color compression.
