@@ -1,0 +1,379 @@
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/@argdown/web-components/dist/argdown-map.css"><script src="https://cdn.jsdelivr.net/npm/@webcomponents/webcomponentsjs/webcomponents-bundle.js" type="module"></script><script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@argdown/web-components/dist/argdown-map.js"></script><figure  role="group" class="argdown-figure"><argdown-map      initial-view="map"><div slot="source" class=""><pre class="language-argdown"><code class="language-argdown"><span class="hljs-section">## Multiple GPU Queues</span>
+<span class="hljs-comment">&lt;!--
+Expose more than a single GPU queue:
+  - investigation: https://github.com/gpuweb/gpuweb/issues/1065
+  - proposal-1: https://github.com/gpuweb/gpuweb/issues/1066
+  - proposal-2: https://github.com/gpuweb/gpuweb/issues/1073
+--&gt;</span>
+
+<span class="hljs-statement-title">[Expose API]:</span> We should expose multiple queues with different capabilities.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;API Support&gt;:</span> Common across all three APIs
+               (Metal starting with version 2, where `MTLEvent` got introduced).
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Performance&gt;:</span> Async compute and transfers are established best practices on
+                   the last-gen console hardware (PS4 and XB1).
+                   See [<span class="hljs-string">AMD presentation</span>](<span class="hljs-link">https://gpuopen.com/wp-content/uploads/2017/03/GDC2017-Asynchronous-Compute-Deep-Dive.pdf</span>).
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Viable&gt;:</span> Investigation showed that we can safely track the ownership of resources
+              by the queues, and insert the necessary pipeline barriers, making this safe.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Implicit Transitions]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Required Transitions]</span>
+
+<span class="hljs-statement-title">[Fully Internal]:</span> WebGPU should internally use multiple queues but not necessarily
+                  expose them to the user.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Simple&gt;:</span> Simplest to use.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Ineffective&gt;:</span> WebGPU doesn&#x27;t know resource dependencies ahead of time, so finding
+                   the efficient scheduling route is hard. It&#x27;s likely to synchronize
+                   more than necessary.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Metal&gt;:</span> this is what Metal-1 does in the drivers/run-time.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[Expose API]</span>
+
+<span class="hljs-statement-title">[Implicit Transitions]:</span> Ownership transition can happen automatically, based on resources
+                        that are used by submissions.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Easy&gt;:</span> Code will always work, just not always be concurrent on GPU, even if
+            the developer submits work to different queues.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[WebGPU doesn&#x27;t need fences]</span>
+
+<span class="hljs-statement-title">[WebGPU doesn&#x27;t need fences]:</span> Fences are technically not needed in the API and can be removed?
+
+<span class="hljs-statement-title">[Optional Transitions]:</span> Allow the developer to specify an ownership transition ahead of time.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Implicit Transitions]</span>
+
+<span class="hljs-statement-title">[Required Transitions]:</span> Require the developer to transition ownership explicitly.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Explicit&gt;:</span> Allows the developer to reason about concurrent GPU processing.
+                Since the developers are not required to use the multiple queues,
+                they want to be sure it works as expected if they do use it.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Racy&gt;:</span> Changing the order of submissions may result in a synchronization error.
+            If submissions are triggered by external events (e<span class="hljs-tag">.g.</span> touch), this
+            may be a hidden even race and a footgun in an otherwise correct application.
+<span class="hljs-attack">    -</span> <span class="hljs-argument-title">&lt;Logic&gt;:</span> If the order of submission is unexpected, that would likely end up with
+               incorrect rendering anyway. So maybe it&#x27;s fine to disallow that?
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[Optional Transitions]</span>
+
+<span class="hljs-argument-title">&lt;Skip Submit&gt;:</span> on Vulkan, we can avoid submitting an empty command buffer with the
+               semaphore and a pipeline barrier.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Optional Transitions]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Required Transitions]</span>
+
+<span class="hljs-statement-title">[Concurrent Textures]:</span> We should support textures that are used concurrently on multiple queues.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Texture Support&gt;:</span> At least D3D12 and Vulkan have explicit opt-in for this behavior.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Cost&gt;:</span> There are clear pefromance costs for having this ability on a texture. It&#x27;s not able
+            to use specific texture states and layouts, and can&#x27;t use color compression.
+</code></pre></div><div slot="map">
+<!-- Generated by graphviz version 2.44.0 (20200408.0750)
+ -->
+<!-- Title: Argument Map Pages: 1 -->
+<svg width="720pt" height="432pt"
+ viewBox="0.00 0.00 720.00 431.56" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.55 0.55) rotate(0) translate(4 782.4)">
+<title>Argument Map</title>
+<g id="clust1" class="cluster">
+<title>cluster_1</title>
+<polygon fill="#dadada" stroke="#dadada" points="8,-8 8,-770.4 1296,-770.4 1296,-8 8,-8"/>
+<text text-anchor="start" x="593.99" y="-755.6" font-family="arial" font-size="12.00" fill="#000000">Multiple GPU Queues</text>
+</g>
+<!-- n0 -->
+<g id="node1" class="node">
+<title>n0</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M848,-328C848,-328 676,-328 676,-328 670,-328 664,-322 664,-316 664,-316 664,-288 664,-288 664,-282 670,-276 676,-276 676,-276 848,-276 848,-276 854,-276 860,-282 860,-288 860,-288 860,-316 860,-316 860,-322 854,-328 848,-328"/>
+<text text-anchor="start" x="735.88" y="-314" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Expose API</text>
+<text text-anchor="start" x="674.2" y="-297" font-family="arial" font-size="10.00" fill="#000000">We should expose multiple queues with</text>
+<text text-anchor="start" x="715.05" y="-285" font-family="arial" font-size="10.00" fill="#000000"> different capabilities.</text>
+</g>
+<!-- n1 -->
+<g id="node2" class="node">
+<title>n1</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M694,-652C694,-652 522,-652 522,-652 516,-652 510,-646 510,-640 510,-640 510,-600 510,-600 510,-594 516,-588 522,-588 522,-588 694,-588 694,-588 700,-588 706,-594 706,-600 706,-600 706,-640 706,-640 706,-646 700,-652 694,-652"/>
+<text text-anchor="start" x="566.61" y="-638" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Implicit Transitions</text>
+<text text-anchor="start" x="534.92" y="-621" font-family="arial" font-size="10.00" fill="#000000">Ownership transition can happen</text>
+<text text-anchor="start" x="521.03" y="-609" font-family="arial" font-size="10.00" fill="#000000"> automatically, based on resources that</text>
+<text text-anchor="start" x="550.21" y="-597" font-family="arial" font-size="10.00" fill="#000000"> are used by submissions.</text>
+</g>
+<!-- n0&#45;&gt;n1 -->
+<g id="edge4" class="edge">
+<title>n0&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M763.56,-328.08C765.27,-375.96 762.87,-481.87 715,-552 707.1,-563.58 696.46,-573.56 684.95,-582.01"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="682.68,-579.33 676.44,-587.89 686.66,-585.08 682.68,-579.33"/>
+</g>
+<!-- n2 -->
+<g id="node3" class="node">
+<title>n2</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M432,-440C432,-440 260,-440 260,-440 254,-440 248,-434 248,-428 248,-428 248,-400 248,-400 248,-394 254,-388 260,-388 260,-388 432,-388 432,-388 438,-388 444,-394 444,-400 444,-400 444,-428 444,-428 444,-434 438,-440 432,-440"/>
+<text text-anchor="start" x="299.88" y="-426" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Required Transitions</text>
+<text text-anchor="start" x="269.59" y="-409" font-family="arial" font-size="10.00" fill="#000000">Require the developer to transition</text>
+<text text-anchor="start" x="300.16" y="-397" font-family="arial" font-size="10.00" fill="#000000"> ownership explicitly.</text>
+</g>
+<!-- n0&#45;&gt;n2 -->
+<g id="edge5" class="edge">
+<title>n0&#45;&gt;n2</title>
+<path fill="none" stroke="#00ff00" d="M713.69,-328.04C695.64,-336.61 674.74,-345.63 655,-352 589.69,-373.08 514.14,-388.15 454.09,-398.04"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="453.53,-394.59 444.21,-399.64 454.65,-401.5 453.53,-394.59"/>
+</g>
+<!-- n4 -->
+<g id="node5" class="node">
+<title>n4</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M694,-740C694,-740 522,-740 522,-740 516,-740 510,-734 510,-728 510,-728 510,-700 510,-700 510,-694 516,-688 522,-688 522,-688 694,-688 694,-688 700,-688 706,-694 706,-700 706,-700 706,-728 706,-728 706,-734 700,-740 694,-740"/>
+<text text-anchor="start" x="540.76" y="-726" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">WebGPU doesn&#39;t need fences</text>
+<text text-anchor="start" x="526.59" y="-709" font-family="arial" font-size="10.00" fill="#000000">Fences are technically not needed in</text>
+<text text-anchor="start" x="540.47" y="-697" font-family="arial" font-size="10.00" fill="#000000"> the API and can be removed?</text>
+</g>
+<!-- n1&#45;&gt;n4 -->
+<g id="edge11" class="edge">
+<title>n1&#45;&gt;n4</title>
+<path fill="none" stroke="#00ff00" d="M608,-652.15C608,-660.45 608,-669.47 608,-677.97"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="604.5,-677.98 608,-687.98 611.5,-677.98 604.5,-677.98"/>
+</g>
+<!-- n5 -->
+<g id="node6" class="node">
+<title>n5</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M432,-540C432,-540 260,-540 260,-540 254,-540 248,-534 248,-528 248,-528 248,-500 248,-500 248,-494 254,-488 260,-488 260,-488 432,-488 432,-488 438,-488 444,-494 444,-500 444,-500 444,-528 444,-528 444,-534 438,-540 432,-540"/>
+<text text-anchor="start" x="301.55" y="-526" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Optional Transitions</text>
+<text text-anchor="start" x="272.92" y="-509" font-family="arial" font-size="10.00" fill="#000000">Allow the developer to specify an</text>
+<text text-anchor="start" x="267.09" y="-497" font-family="arial" font-size="10.00" fill="#000000"> ownership transition ahead of time.</text>
+</g>
+<!-- n2&#45;&gt;n5 -->
+<g id="edge16" class="edge">
+<title>n2&#45;&gt;n5</title>
+<path fill="none" stroke="#ff0000" d="M346,-440.24C346,-451.67 346,-465.38 346,-477.8"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="342.5,-477.85 346,-487.85 349.5,-477.85 342.5,-477.85"/>
+</g>
+<!-- n3 -->
+<g id="node4" class="node">
+<title>n3</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M633.5,-210C633.5,-210 456.5,-210 456.5,-210 450.5,-210 444.5,-204 444.5,-198 444.5,-198 444.5,-158 444.5,-158 444.5,-152 450.5,-146 456.5,-146 456.5,-146 633.5,-146 633.5,-146 639.5,-146 645.5,-152 645.5,-158 645.5,-158 645.5,-198 645.5,-198 645.5,-204 639.5,-210 633.5,-210"/>
+<text text-anchor="start" x="516.89" y="-196" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Fully Internal</text>
+<text text-anchor="start" x="458.82" y="-179" font-family="arial" font-size="10.00" fill="#000000">WebGPU should internally use multiple</text>
+<text text-anchor="start" x="454.64" y="-167" font-family="arial" font-size="10.00" fill="#000000"> queues but not necessarily expose them</text>
+<text text-anchor="start" x="519.1" y="-155" font-family="arial" font-size="10.00" fill="#000000"> to the user.</text>
+</g>
+<!-- n3&#45;&gt;n0 -->
+<g id="edge9" class="edge">
+<title>n3&#45;&gt;n0</title>
+<path fill="none" stroke="#ff0000" d="M600.32,-210.1C633.49,-228.75 675.47,-252.35 708.34,-270.83"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="706.92,-274.05 717.36,-275.9 710.36,-267.95 706.92,-274.05"/>
+</g>
+<!-- n5&#45;&gt;n1 -->
+<g id="edge12" class="edge">
+<title>n5&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M409.09,-540.04C442.31,-553.23 483.58,-569.61 519.91,-584.03"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="518.93,-587.41 529.52,-587.85 521.52,-580.9 518.93,-587.41"/>
+</g>
+<!-- n6 -->
+<g id="node7" class="node">
+<title>n6</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M200,-204C200,-204 28,-204 28,-204 22,-204 16,-198 16,-192 16,-192 16,-164 16,-164 16,-158 22,-152 28,-152 28,-152 200,-152 200,-152 206,-152 212,-158 212,-164 212,-164 212,-192 212,-192 212,-198 206,-204 200,-204"/>
+<text text-anchor="start" x="68.44" y="-190" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Concurrent Textures</text>
+<text text-anchor="start" x="34.81" y="-173" font-family="arial" font-size="10.00" fill="#000000">We should support textures that are</text>
+<text text-anchor="start" x="28.42" y="-161" font-family="arial" font-size="10.00" fill="#000000"> used concurrently on multiple queues.</text>
+</g>
+<!-- n7 -->
+<g id="node8" class="node">
+<title>n7</title>
+<path fill="#1b9e77" stroke="black" d="M1276,-210C1276,-210 1104,-210 1104,-210 1098,-210 1092,-204 1092,-198 1092,-198 1092,-158 1092,-158 1092,-152 1098,-146 1104,-146 1104,-146 1276,-146 1276,-146 1282,-146 1288,-152 1288,-158 1288,-158 1288,-198 1288,-198 1288,-204 1282,-210 1276,-210"/>
+<text text-anchor="start" x="1163.05" y="-196" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">API Support</text>
+<text text-anchor="start" x="1107.22" y="-179" font-family="arial" font-size="10.00" fill="#000000">Common across all three APIs (Metal</text>
+<text text-anchor="start" x="1123.88" y="-167" font-family="arial" font-size="10.00" fill="#000000"> starting with version 2, where</text>
+<text text-anchor="start" x="1127.49" y="-155" font-family="arial" font-size="10.00" fill="#000000"> `MTLEvent` got introduced).</text>
+</g>
+<!-- n7&#45;&gt;n0 -->
+<g id="edge1" class="edge">
+<title>n7&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1102,-210.01C1095.59,-212.09 1089.2,-214.11 1083,-216 1012.6,-237.46 932.58,-258.66 870.05,-274.51"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="869,-271.17 860.16,-277.01 870.72,-277.96 869,-271.17"/>
+</g>
+<!-- n8 -->
+<g id="node9" class="node">
+<title>n8</title>
+<path fill="#1b9e77" stroke="black" d="M1062,-216C1062,-216 890,-216 890,-216 884,-216 878,-210 878,-204 878,-204 878,-152 878,-152 878,-146 884,-140 890,-140 890,-140 1062,-140 1062,-140 1068,-140 1074,-146 1074,-152 1074,-152 1074,-204 1074,-204 1074,-210 1068,-216 1062,-216"/>
+<text text-anchor="start" x="947.38" y="-202" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Performance</text>
+<text text-anchor="start" x="902.65" y="-185" font-family="arial" font-size="10.00" fill="#000000">Async compute and transfers are</text>
+<text text-anchor="start" x="901.81" y="-173" font-family="arial" font-size="10.00" fill="#000000"> established best practices on the</text>
+<text text-anchor="start" x="893.76" y="-161" font-family="arial" font-size="10.00" fill="#000000"> last&#45;gen console hardware (PS4 and</text>
+<text text-anchor="start" x="909.04" y="-149" font-family="arial" font-size="10.00" fill="#000000"> XB1). See AMD presentation.</text>
+</g>
+<!-- n8&#45;&gt;n0 -->
+<g id="edge2" class="edge">
+<title>n8&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M910.92,-216.1C880.16,-233.64 843.92,-254.3 814.88,-270.85"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="813.07,-267.85 806.12,-275.85 816.54,-273.94 813.07,-267.85"/>
+</g>
+<!-- n9 -->
+<g id="node10" class="node">
+<title>n9</title>
+<path fill="#1b9e77" stroke="black" d="M848,-216C848,-216 676,-216 676,-216 670,-216 664,-210 664,-204 664,-204 664,-152 664,-152 664,-146 670,-140 676,-140 676,-140 848,-140 848,-140 854,-140 860,-146 860,-152 860,-152 860,-204 860,-204 860,-210 854,-216 848,-216"/>
+<text text-anchor="start" x="748.11" y="-202" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Viable</text>
+<text text-anchor="start" x="673.92" y="-185" font-family="arial" font-size="10.00" fill="#000000">Investigation showed that we can safely</text>
+<text text-anchor="start" x="681.7" y="-173" font-family="arial" font-size="10.00" fill="#000000"> track the ownership of resources by</text>
+<text text-anchor="start" x="678.64" y="-161" font-family="arial" font-size="10.00" fill="#000000"> the queues, and insert the necessary</text>
+<text text-anchor="start" x="684.77" y="-149" font-family="arial" font-size="10.00" fill="#000000"> pipeline barriers, making this safe.</text>
+</g>
+<!-- n9&#45;&gt;n0 -->
+<g id="edge3" class="edge">
+<title>n9&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M762,-216.27C762,-231.98 762,-250.18 762,-265.68"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="758.5,-265.92 762,-275.92 765.5,-265.92 758.5,-265.92"/>
+</g>
+<!-- n10 -->
+<g id="node11" class="node">
+<title>n10</title>
+<path fill="#1b9e77" stroke="black" d="M1058,-80C1058,-80 886,-80 886,-80 880,-80 874,-74 874,-68 874,-68 874,-52 874,-52 874,-46 880,-40 886,-40 886,-40 1058,-40 1058,-40 1064,-40 1070,-46 1070,-52 1070,-52 1070,-68 1070,-68 1070,-74 1064,-80 1058,-80"/>
+<text text-anchor="start" x="956.72" y="-66" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Simple</text>
+<text text-anchor="start" x="936.44" y="-49" font-family="arial" font-size="10.00" fill="#000000">Simplest to use.</text>
+</g>
+<!-- n10&#45;&gt;n3 -->
+<g id="edge6" class="edge">
+<title>n10&#45;&gt;n3</title>
+<path fill="none" stroke="#00ff00" d="M930.54,-80.06C910.99,-88.41 887.15,-97.73 865,-104 773.89,-129.8 746.82,-116.84 655,-140 651.15,-140.97 647.25,-142.01 643.32,-143.1"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="642.15,-139.8 633.5,-145.92 644.08,-146.53 642.15,-139.8"/>
+</g>
+<!-- n11 -->
+<g id="node12" class="node">
+<title>n11</title>
+<path fill="#1b9e77" stroke="black" d="M844,-104C844,-104 672,-104 672,-104 666,-104 660,-98 660,-92 660,-92 660,-28 660,-28 660,-22 666,-16 672,-16 672,-16 844,-16 844,-16 850,-16 856,-22 856,-28 856,-28 856,-92 856,-92 856,-98 850,-104 844,-104"/>
+<text text-anchor="start" x="735.21" y="-90" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Ineffective</text>
+<text text-anchor="start" x="685.49" y="-73" font-family="arial" font-size="10.00" fill="#000000">WebGPU doesn&#39;t know resource</text>
+<text text-anchor="start" x="669.63" y="-61" font-family="arial" font-size="10.00" fill="#000000"> dependencies ahead of time, so finding</text>
+<text text-anchor="start" x="687.98" y="-49" font-family="arial" font-size="10.00" fill="#000000"> the efficient scheduling route is</text>
+<text text-anchor="start" x="678.55" y="-37" font-family="arial" font-size="10.00" fill="#000000"> hard. It&#39;s likely to synchronize more</text>
+<text text-anchor="start" x="721.32" y="-25" font-family="arial" font-size="10.00" fill="#000000"> than necessary.</text>
+</g>
+<!-- n11&#45;&gt;n3 -->
+<g id="edge7" class="edge">
+<title>n11&#45;&gt;n3</title>
+<path fill="none" stroke="#ff0000" d="M678.99,-104.03C656.61,-116.22 632.5,-129.35 610.98,-141.07"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="609.04,-138.14 601.93,-146 612.38,-144.29 609.04,-138.14"/>
+</g>
+<!-- n12 -->
+<g id="node13" class="node">
+<title>n12</title>
+<path fill="#1b9e77" stroke="black" d="M630,-86C630,-86 458,-86 458,-86 452,-86 446,-80 446,-74 446,-74 446,-46 446,-46 446,-40 452,-34 458,-34 458,-34 630,-34 630,-34 636,-34 642,-40 642,-46 642,-46 642,-74 642,-74 642,-80 636,-86 630,-86"/>
+<text text-anchor="start" x="531.78" y="-72" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Metal</text>
+<text text-anchor="start" x="475.37" y="-55" font-family="arial" font-size="10.00" fill="#000000">this is what Metal&#45;1 does in the</text>
+<text text-anchor="start" x="506.5" y="-43" font-family="arial" font-size="10.00" fill="#000000"> drivers/run&#45;time.</text>
+</g>
+<!-- n12&#45;&gt;n3 -->
+<g id="edge8" class="edge">
+<title>n12&#45;&gt;n3</title>
+<path fill="none" stroke="#00ff00" d="M544.22,-86.17C544.34,-100.49 544.5,-118.79 544.64,-135.21"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="541.14,-135.7 544.73,-145.67 548.14,-135.64 541.14,-135.7"/>
+</g>
+<!-- n13 -->
+<g id="node14" class="node">
+<title>n13</title>
+<path fill="#1b9e77" stroke="black" d="M694,-552C694,-552 522,-552 522,-552 516,-552 510,-546 510,-540 510,-540 510,-488 510,-488 510,-482 516,-476 522,-476 522,-476 694,-476 694,-476 700,-476 706,-482 706,-488 706,-488 706,-540 706,-540 706,-546 700,-552 694,-552"/>
+<text text-anchor="start" x="596.89" y="-538" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Easy</text>
+<text text-anchor="start" x="523.55" y="-521" font-family="arial" font-size="10.00" fill="#000000">Code will always work, just not always</text>
+<text text-anchor="start" x="531.03" y="-509" font-family="arial" font-size="10.00" fill="#000000"> be concurrent on GPU, even if the</text>
+<text text-anchor="start" x="529.1" y="-497" font-family="arial" font-size="10.00" fill="#000000"> developer submits work to different</text>
+<text text-anchor="start" x="588.82" y="-485" font-family="arial" font-size="10.00" fill="#000000"> queues.</text>
+</g>
+<!-- n13&#45;&gt;n1 -->
+<g id="edge10" class="edge">
+<title>n13&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M608,-552.25C608,-560.54 608,-569.37 608,-577.81"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="604.5,-577.84 608,-587.84 611.5,-577.84 604.5,-577.84"/>
+</g>
+<!-- n14 -->
+<g id="node15" class="node">
+<title>n14</title>
+<path fill="#1b9e77" stroke="black" d="M634,-346C634,-346 462,-346 462,-346 456,-346 450,-340 450,-334 450,-334 450,-270 450,-270 450,-264 456,-258 462,-258 462,-258 634,-258 634,-258 640,-258 646,-264 646,-270 646,-270 646,-334 646,-334 646,-340 640,-346 634,-346"/>
+<text text-anchor="start" x="532.17" y="-332" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Explicit</text>
+<text text-anchor="start" x="465.75" y="-315" font-family="arial" font-size="10.00" fill="#000000">Allows the developer to reason about</text>
+<text text-anchor="start" x="461.59" y="-303" font-family="arial" font-size="10.00" fill="#000000"> concurrent GPU processing. Since the</text>
+<text text-anchor="start" x="462.14" y="-291" font-family="arial" font-size="10.00" fill="#000000"> developers are not required to use the</text>
+<text text-anchor="start" x="463.81" y="-279" font-family="arial" font-size="10.00" fill="#000000"> multiple queues, they want to be sure</text>
+<text text-anchor="start" x="464.92" y="-267" font-family="arial" font-size="10.00" fill="#000000"> it works as expected if they do use it.</text>
+</g>
+<!-- n14&#45;&gt;n2 -->
+<g id="edge13" class="edge">
+<title>n14&#45;&gt;n2</title>
+<path fill="none" stroke="#00ff00" d="M469.03,-346C446.18,-358.44 421.75,-371.75 400.73,-383.2"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="399.05,-380.12 391.95,-387.98 402.4,-386.27 399.05,-380.12"/>
+</g>
+<!-- n15 -->
+<g id="node16" class="node">
+<title>n15</title>
+<path fill="#1b9e77" stroke="black" d="M420,-352C420,-352 248,-352 248,-352 242,-352 236,-346 236,-340 236,-340 236,-264 236,-264 236,-258 242,-252 248,-252 248,-252 420,-252 420,-252 426,-252 432,-258 432,-264 432,-264 432,-340 432,-340 432,-346 426,-352 420,-352"/>
+<text text-anchor="start" x="322.61" y="-338" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Racy</text>
+<text text-anchor="start" x="245.93" y="-321" font-family="arial" font-size="10.00" fill="#000000">Changing the order of submissions may</text>
+<text text-anchor="start" x="257.32" y="-309" font-family="arial" font-size="10.00" fill="#000000"> result in a synchronization error. If</text>
+<text text-anchor="start" x="249.54" y="-297" font-family="arial" font-size="10.00" fill="#000000"> submissions are triggered by external</text>
+<text text-anchor="start" x="258.7" y="-285" font-family="arial" font-size="10.00" fill="#000000"> events (e.g. touch), this may be a</text>
+<text text-anchor="start" x="250.07" y="-273" font-family="arial" font-size="10.00" fill="#000000"> hidden even race and a footgun in an</text>
+<text text-anchor="start" x="267.88" y="-261" font-family="arial" font-size="10.00" fill="#000000"> otherwise correct application.</text>
+</g>
+<!-- n15&#45;&gt;n2 -->
+<g id="edge15" class="edge">
+<title>n15&#45;&gt;n2</title>
+<path fill="none" stroke="#ff0000" d="M339.37,-352.21C340.32,-360.9 341.29,-369.78 342.18,-377.98"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="338.7,-378.37 343.26,-387.93 345.66,-377.61 338.7,-378.37"/>
+</g>
+<!-- n16 -->
+<g id="node17" class="node">
+<title>n16</title>
+<path fill="#1b9e77" stroke="black" d="M414,-216C414,-216 242,-216 242,-216 236,-216 230,-210 230,-204 230,-204 230,-152 230,-152 230,-146 236,-140 242,-140 242,-140 414,-140 414,-140 420,-140 426,-146 426,-152 426,-152 426,-204 426,-204 426,-210 420,-216 414,-216"/>
+<text text-anchor="start" x="316.05" y="-202" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Logic</text>
+<text text-anchor="start" x="266.88" y="-185" font-family="arial" font-size="10.00" fill="#000000">If the order of submission is</text>
+<text text-anchor="start" x="246.03" y="-173" font-family="arial" font-size="10.00" fill="#000000"> unexpected, that would likely end up</text>
+<text text-anchor="start" x="247.43" y="-161" font-family="arial" font-size="10.00" fill="#000000"> with incorrect rendering anyway. So</text>
+<text text-anchor="start" x="257.44" y="-149" font-family="arial" font-size="10.00" fill="#000000"> maybe it&#39;s fine to disallow that?</text>
+</g>
+<!-- n16&#45;&gt;n15 -->
+<g id="edge14" class="edge">
+<title>n16&#45;&gt;n15</title>
+<path fill="none" stroke="#ff0000" d="M329.83,-216.27C330.23,-224.33 330.66,-233.04 331.08,-241.71"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="327.59,-242 331.58,-251.82 334.59,-241.66 327.59,-242"/>
+</g>
+<!-- n17 -->
+<g id="node18" class="node">
+<title>n17</title>
+<path fill="#1b9e77" stroke="black" d="M206,-334C206,-334 34,-334 34,-334 28,-334 22,-328 22,-322 22,-322 22,-282 22,-282 22,-276 28,-270 34,-270 34,-270 206,-270 206,-270 212,-270 218,-276 218,-282 218,-282 218,-322 218,-322 218,-328 212,-334 206,-334"/>
+<text text-anchor="start" x="93.33" y="-320" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Skip Submit</text>
+<text text-anchor="start" x="34.7" y="-303" font-family="arial" font-size="10.00" fill="#000000">on Vulkan, we can avoid submitting an</text>
+<text text-anchor="start" x="48.87" y="-291" font-family="arial" font-size="10.00" fill="#000000"> empty command buffer with the</text>
+<text text-anchor="start" x="43.87" y="-279" font-family="arial" font-size="10.00" fill="#000000"> semaphore and a pipeline barrier.</text>
+</g>
+<!-- n17&#45;&gt;n2 -->
+<g id="edge18" class="edge">
+<title>n17&#45;&gt;n2</title>
+<path fill="none" stroke="#00ff00" d="M183.86,-334.08C215.7,-349.58 254,-368.22 285.38,-383.49"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="283.94,-386.68 294.46,-387.91 287,-380.39 283.94,-386.68"/>
+</g>
+<!-- n17&#45;&gt;n5 -->
+<g id="edge17" class="edge">
+<title>n17&#45;&gt;n5</title>
+<path fill="none" stroke="#00ff00" d="M143.26,-334.15C165.89,-363.32 202.17,-407.23 239,-440 256.26,-455.36 276.9,-470.14 295.42,-482.35"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="293.75,-485.43 304.04,-487.94 297.56,-479.56 293.75,-485.43"/>
+</g>
+<!-- n18 -->
+<g id="node19" class="node">
+<title>n18</title>
+<path fill="#1b9e77" stroke="black" d="M415.5,-86C415.5,-86 242.5,-86 242.5,-86 236.5,-86 230.5,-80 230.5,-74 230.5,-74 230.5,-46 230.5,-46 230.5,-40 236.5,-34 242.5,-34 242.5,-34 415.5,-34 415.5,-34 421.5,-34 427.5,-40 427.5,-46 427.5,-46 427.5,-74 427.5,-74 427.5,-80 421.5,-86 415.5,-86"/>
+<text text-anchor="start" x="293.66" y="-72" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Texture Support</text>
+<text text-anchor="start" x="240.59" y="-55" font-family="arial" font-size="10.00" fill="#000000">At least D3D12 and Vulkan have explicit</text>
+<text text-anchor="start" x="277.27" y="-43" font-family="arial" font-size="10.00" fill="#000000"> opt&#45;in for this behavior.</text>
+</g>
+<!-- n18&#45;&gt;n6 -->
+<g id="edge19" class="edge">
+<title>n18&#45;&gt;n6</title>
+<path fill="none" stroke="#00ff00" d="M282.61,-86.03C249.52,-103.88 204.87,-127.97 169.82,-146.88"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="167.81,-143.99 160.67,-151.82 171.14,-150.15 167.81,-143.99"/>
+</g>
+<!-- n19 -->
+<g id="node20" class="node">
+<title>n19</title>
+<path fill="#1b9e77" stroke="black" d="M200,-104C200,-104 28,-104 28,-104 22,-104 16,-98 16,-92 16,-92 16,-28 16,-28 16,-22 22,-16 28,-16 28,-16 200,-16 200,-16 206,-16 212,-22 212,-28 212,-28 212,-92 212,-92 212,-98 206,-104 200,-104"/>
+<text text-anchor="start" x="103.72" y="-90" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Cost</text>
+<text text-anchor="start" x="32.04" y="-73" font-family="arial" font-size="10.00" fill="#000000">There are clear pefromance costs for</text>
+<text text-anchor="start" x="37.6" y="-61" font-family="arial" font-size="10.00" fill="#000000"> having this ability on a texture. It&#39;s</text>
+<text text-anchor="start" x="45.09" y="-49" font-family="arial" font-size="10.00" fill="#000000"> not able to use specific texture</text>
+<text text-anchor="start" x="39.81" y="-37" font-family="arial" font-size="10.00" fill="#000000"> states and layouts, and can&#39;t use</text>
+<text text-anchor="start" x="70.66" y="-25" font-family="arial" font-size="10.00" fill="#000000"> color compression.</text>
+</g>
+<!-- n19&#45;&gt;n6 -->
+<g id="edge20" class="edge">
+<title>n19&#45;&gt;n6</title>
+<path fill="none" stroke="#ff0000" d="M114,-104.19C114,-116.52 114,-129.81 114,-141.61"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="110.5,-141.97 114,-151.97 117.5,-141.97 110.5,-141.97"/>
+</g>
+</g>
+</svg>
+</div></argdown-map></figure>
