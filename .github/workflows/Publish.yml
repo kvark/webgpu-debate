@@ -16,6 +16,7 @@ jobs:
       - run: npm install -g @argdown/cli @argdown/web-components
       - run: argdown html
       - run: argdown web-component
+      - run: cp web-index.html html/index.html
       - name: Deploy on the Web
         uses: JamesIves/github-pages-deploy-action@releases/v3
         with:

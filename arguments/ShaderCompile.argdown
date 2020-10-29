@@ -1,0 +1,100 @@
+## Shader Compilation
+<!--
+Stages of shader compilation:
+  - https://github.com/gpuweb/gpuweb/issues/1064
+-->
+
+[Have `createShaderModule`]: WebGPU should have an API to create a shader module
+independently of pipelines.
+  + <vkCreateShaderModule>: matches Vulkan's `vkCreateShaderModule`
+  + <Parsing and validation>: allows us to parse WGSL, build IR, and validate it.
+    This guarantees that the only errors that could happen
+    later on with a shader are about the shader interface.
+  - <Raw non-Vulkan>: on non-Vulkan, there are no low-level objects to create at this stage.
+
+[`GPUShaderModule` should contain `MTLLibrary`]: WebGPU, Metal, Vulkan, and D3D12
+all have 2-stage shader compilation pipelines. Vulkan matches WebGPU in this API.
+`MTLLibrary` is the product of the first stage in Metal, however WebGPU implementations
+can not produce it in `createShaderModule`, because it requires more information
+about the pipeline. Same applies to HLSL/DXIL.
+  + <newLibraryWithSource>: matches Metal's `newLibraryWithSource`. When Metal developers
+    write shaders, they have to define the structure of argument
+    buffers inside the shader code. This roughly matches WebGPU's `GPUPipelineLayout`.
+  + <D3DCompile>: matches D3D's `D3DCompile` - would produce HLSL/DXIL in the first stage.
+  +> [Have `createShaderModule`]
+  +> [Pipeline layouts in `createShaderModule`]
+
+<Metal's `createShaderModule` is slow>: `createShaderModule` is slow, thus it makes sense to
+do it early before the pipelines are created. Roughly speaking, it takes as much time to generate
+`MTLLibrary` as it does to create an `MTLRenderPipelineState`.
+  + @litherum [showed the numbers](https://github.com/gpuweb/gpuweb/issues/1064#issuecomment-695978975)
+    from the Metal Performance Shaders running matrix multiplication.
+  + @kvark [showed the numbers](https://github.com/gpuweb/gpuweb/issues/1064#issuecomment-700210947)
+    from Dota2 shaders transpiling to Metal in a Vulkan Portability implementation.
+  + @Kangz [showed the numbers](https://github.com/gpuweb/gpuweb/issues/1064#issuecomment-700210947)
+    with forced driver cache invalidation.
+  +> [`GPUShaderModule` should contain `MTLLibrary`]
+
+<Full pipeline descriptor>: In order to create `MTLLibrary` or DXIL from WGSL code,
+we'd need most of the `GPURenderPipelineDescriptor` data.
+  + <Need layout>: knowing the pipeline layout is required to assign the proper resource
+    binding indices, as well as define Metal argument buffers.
+    +> [Pipeline layouts in `createShaderModule`]
+  + <Need sample mask>: On Metal, we have to implement the per-pipeline sample mask by modifying
+    the `\[\[sample\_mask\]\]` fragment shader output in code.
+    Doing this unconditionally would disable early-Z tests, bearing a high
+    cost on performance. So we should only inject this code in shaders that
+    rely on the pipeline sample mask, and the value of it being non-trivial.
+  + <Need depth bias>: On drivers/platforms that don't have a proper depth bias state, we could
+    emulate it by injecting code into vertex shaders.
+  + <Need vertex input>: Dawn and wgpu want to have an ability to implement out-of-bound checks
+    for vertex attributes via programmable pulling on Metal. This requires
+    vertex shader code injected.
+  + <Need unknown>: We don't know what other pipeline states we'd need in the future in order
+    to modify/inject shader code, related to possible HW and driver bug workarounds.
+  -> [Pipeline layouts in `createShaderModule`]
+  +> [Have `precompile` API]
+
+[Pipeline layouts in `createShaderModule`]: Have an ability to provide
+the pipeline layouts into `createShaderModule`, per entry point.
+  -> [Keep `createShaderModule`]
+
+[Keep `createShaderModule`]: Keep the API for module creation as is, mostly matching Vulkan.
+  -> [Pipeline layouts in `createShaderModule`]
+  +> [Have `createShaderModule`]
+
+<Caches>: The combination of driver cache and browser cache can drastically reduce the
+number of cases where we'd have to create a new `MTLLibrary`.
+  +> [Keep `createShaderModule`]
+
+<Target LLVM IR>: The implementations could target AIR and DXIL directly, in which case
+the cost of producing it would be reduced compare to the current model that has a text format
+MSL or HLSL as an intermediate.
+  +> [Keep `createShaderModule`]
+
+<Multiple entry points>: An ideal Metal application would re-use `MTLLibrary` for multiple
+different entry points in the pipelines it creates. That is unlike WebGPU, where an implementation
+can only create `MTLLibrary` when it has a specific entry point selected, and doesn't know
+about any other entry points.
+  +> [`GPUShaderModule` should contain `MTLLibrary`]
+  -> <Caches>
+  +> <All at once>
+
+<All at once>: Given a list of entry points with all the associated pipeline information,
+an implementation can create fewer `MTLLibrary` and `DXIL` objects.
+  +> [Have `precompile` API]
+  +> [Have `createReadyPipelines`]
+
+<Combinations>: Users may not know ahead of time which vertex shaders are used with which fragment
+shaders. In Metal, they can still mix and match `MTLLibrary` use for pipeline creation.
+  -> [Have `createReadyPipelines`]
+
+[Have `precompile` API]: Add [some API]([Keep `createShaderModule`]) on the `GPUShaderModule`
+to tell it ahead of time the bits of the pipeline that the contained entry points will be
+created with.
+  - <Precompile spec>: it's difficult to specify this and set up the proper expectations for the
+    users, as in: what would be the difference between hinting and not hinting, depending on
+    the target platform.
+
+[Have `createReadyPipelines`]: WebGPU should have a plural `createReadyPipelines` asynchronous
+method.
