@@ -1,0 +1,580 @@
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/@argdown/web-components/dist/argdown-map.css"><script src="https://cdn.jsdelivr.net/npm/@webcomponents/webcomponentsjs/webcomponents-bundle.js" type="module"></script><script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@argdown/web-components/dist/argdown-map.js"></script><figure  role="group" class="argdown-figure"><argdown-map      initial-view="map"><div slot="source" class=""><pre class="language-argdown"><code class="language-argdown"><span class="hljs-section">## Shader Compilation</span>
+<span class="hljs-comment">&lt;!--
+Stages of shader compilation:
+  - https://github.com/gpuweb/gpuweb/issues/1064
+--&gt;</span>
+
+<span class="hljs-statement-title">[Have `createShaderModule`]:</span> WebGPU should have an API to create a shader module
+independently of pipelines.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;vkCreateShaderModule&gt;:</span> matches Vulkan&#x27;s `vkCreateShaderModule`
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Parsing and validation&gt;:</span> allows us to parse WGSL, build IR, and validate it.
+    This guarantees that the only errors that could happen
+    later on with a shader are about the shader interface.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Raw non-Vulkan&gt;:</span> on non-Vulkan, there are no low-level objects to create at this stage.
+
+<span class="hljs-statement-title">[`GPUShaderModule` should contain `MTLLibrary`]:</span> WebGPU, Metal, Vulkan, and D3D12
+all have 2-stage shader compilation pipelines. Vulkan matches WebGPU in this API.
+`MTLLibrary` is the product of the first stage in Metal, however WebGPU implementations
+can not produce it in `createShaderModule`, because it requires more information
+about the pipeline. Same applies to HLSL/DXIL.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;newLibraryWithSource&gt;:</span> matches Metal&#x27;s `newLibraryWithSource`. When Metal developers
+    write shaders, they have to define the structure of argument
+    buffers inside the shader code. This roughly matches WebGPU&#x27;s `GPUPipelineLayout`.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;D3DCompile&gt;:</span> matches D3D&#x27;s `D3DCompile` - would produce HLSL/DXIL in the first stage.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Have `createShaderModule`]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Pipeline layouts in `createShaderModule`]</span>
+
+<span class="hljs-argument-title">&lt;Metal&#x27;s `createShaderModule` is slow&gt;:</span> `createShaderModule` is slow, thus it makes sense to
+do it early before the pipelines are created. Roughly speaking, it takes as much time to generate
+`MTLLibrary` as it does to create an `MTLRenderPipelineState`.
+<span class="hljs-support">  +</span> @litherum [<span class="hljs-string">showed the numbers</span>](<span class="hljs-link">https://github.com/gpuweb/gpuweb/issues/1064#issuecomment-695978975</span>)
+    from the Metal Performance Shaders running matrix multiplication.
+<span class="hljs-support">  +</span> @kvark [<span class="hljs-string">showed the numbers</span>](<span class="hljs-link">https://github.com/gpuweb/gpuweb/issues/1064#issuecomment-700210947</span>)
+    from Dota2 shaders transpiling to Metal in a Vulkan Portability implementation.
+<span class="hljs-support">  +</span> @Kangz [<span class="hljs-string">showed the numbers</span>](<span class="hljs-link">https://github.com/gpuweb/gpuweb/issues/1064#issuecomment-700210947</span>)
+    with forced driver cache invalidation.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[`GPUShaderModule` should contain `MTLLibrary`]</span>
+
+<span class="hljs-argument-title">&lt;Full pipeline descriptor&gt;:</span> In order to create `MTLLibrary` or DXIL from WGSL code,
+we&#x27;d need most of the `GPURenderPipelineDescriptor` data.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Need layout&gt;:</span> knowing the pipeline layout is required to assign the proper resource
+    binding indices, as well as define Metal argument buffers.
+<span class="hljs-support">    +&gt;</span> <span class="hljs-statement-title">[Pipeline layouts in `createShaderModule`]</span>
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Need sample mask&gt;:</span> On Metal, we have to implement the per-pipeline sample mask by modifying
+    the `<span class="hljs-meta">\[</span><span class="hljs-meta">\[</span>sample<span class="hljs-meta">\_</span>mask<span class="hljs-meta">\]</span><span class="hljs-meta">\]</span>` fragment shader output in code.
+    Doing this unconditionally would disable early-Z tests, bearing a high
+    cost on performance. So we should only inject this code in shaders that
+    rely on the pipeline sample mask, and the value of it being non-trivial.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Need depth bias&gt;:</span> On drivers/platforms that don&#x27;t have a proper depth bias state, we could
+    emulate it by injecting code into vertex shaders.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Need vertex input&gt;:</span> Dawn and wgpu want to have an ability to implement out-of-bound checks
+    for vertex attributes via programmable pulling on Metal. This requires
+    vertex shader code injected.
+<span class="hljs-support">  +</span> <span class="hljs-argument-title">&lt;Need unknown&gt;:</span> We don&#x27;t know what other pipeline states we&#x27;d need in the future in order
+    to modify/inject shader code, related to possible HW and driver bug workarounds.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[Pipeline layouts in `createShaderModule`]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Have `precompile` API]</span>
+
+<span class="hljs-statement-title">[Pipeline layouts in `createShaderModule`]:</span> Have an ability to provide
+the pipeline layouts into `createShaderModule`, per entry point.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[Keep `createShaderModule`]</span>
+
+<span class="hljs-statement-title">[Keep `createShaderModule`]:</span> Keep the API for module creation as is, mostly matching Vulkan.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[Pipeline layouts in `createShaderModule`]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Have `createShaderModule`]</span>
+
+<span class="hljs-argument-title">&lt;Caches&gt;:</span> The combination of driver cache and browser cache can drastically reduce the
+number of cases where we&#x27;d have to create a new `MTLLibrary`.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Keep `createShaderModule`]</span>
+
+<span class="hljs-argument-title">&lt;Target LLVM IR&gt;:</span> The implementations could target AIR and DXIL directly, in which case
+the cost of producing it would be reduced compare to the current model that has a text format
+MSL or HLSL as an intermediate.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Keep `createShaderModule`]</span>
+
+<span class="hljs-argument-title">&lt;Multiple entry points&gt;:</span> An ideal Metal application would re-use `MTLLibrary` for multiple
+different entry points in the pipelines it creates. That is unlike WebGPU, where an implementation
+can only create `MTLLibrary` when it has a specific entry point selected, and doesn&#x27;t know
+about any other entry points.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[`GPUShaderModule` should contain `MTLLibrary`]</span>
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-argument-title">&lt;Caches&gt;</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-argument-title">&lt;All at once&gt;</span>
+
+<span class="hljs-argument-title">&lt;All at once&gt;:</span> Given a list of entry points with all the associated pipeline information,
+an implementation can create fewer `MTLLibrary` and `DXIL` objects.
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Have `precompile` API]</span>
+<span class="hljs-support">  +&gt;</span> <span class="hljs-statement-title">[Have `createReadyPipelines`]</span>
+
+<span class="hljs-argument-title">&lt;Combinations&gt;:</span> Users may not know ahead of time which vertex shaders are used with which fragment
+shaders. In Metal, they can still mix and match `MTLLibrary` use for pipeline creation.
+<span class="hljs-attack">  -&gt;</span> <span class="hljs-statement-title">[Have `createReadyPipelines`]</span>
+
+[<span class="hljs-string">Have `precompile` API</span>]: Add [<span class="hljs-string">some API</span>](<span class="hljs-link">[Keep `createShaderModule`]</span>) on the `GPUShaderModule`
+to tell it ahead of time the bits of the pipeline that the contained entry points will be
+created with.
+<span class="hljs-attack">  -</span> <span class="hljs-argument-title">&lt;Precompile spec&gt;:</span> it&#x27;s difficult to specify this and set up the proper expectations for the
+    users, as in: what would be the difference between hinting and not hinting, depending on
+    the target platform.
+
+<span class="hljs-statement-title">[Have `createReadyPipelines`]:</span> WebGPU should have a plural `createReadyPipelines` asynchronous
+method.
+</code></pre></div><div slot="map">
+<!-- Generated by graphviz version 2.44.1 (20200629.0846)
+ -->
+<!-- Title: Argument Map Pages: 1 -->
+<svg width="720pt" height="307pt"
+ viewBox="0.00 0.00 720.00 307.14" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.37 0.37) rotate(0) translate(4 830.4)">
+<title>Argument Map</title>
+<g id="clust1" class="cluster">
+<title>cluster_1</title>
+<polygon fill="#dadada" stroke="#dadada" points="8,-8 8,-818.4 1940,-818.4 1940,-8 8,-8"/>
+<text text-anchor="start" x="921.32" y="-803.6" font-family="arial" font-size="12.00" fill="#000000">Shader Compilation</text>
+</g>
+<!-- n0 -->
+<g id="node1" class="node">
+<title>n0</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1480.5,-788C1480.5,-788 1303.5,-788 1303.5,-788 1297.5,-788 1291.5,-782 1291.5,-776 1291.5,-776 1291.5,-736 1291.5,-736 1291.5,-730 1297.5,-724 1303.5,-724 1303.5,-724 1480.5,-724 1480.5,-724 1486.5,-724 1492.5,-730 1492.5,-736 1492.5,-736 1492.5,-776 1492.5,-776 1492.5,-782 1486.5,-788 1480.5,-788"/>
+<text text-anchor="start" x="1330.82" y="-774" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Have `createShaderModule`</text>
+<text text-anchor="start" x="1301.64" y="-757" font-family="arial" font-size="10.00" fill="#000000">WebGPU should have an API to create a</text>
+<text text-anchor="start" x="1319.97" y="-745" font-family="arial" font-size="10.00" fill="#000000"> shader module independently of</text>
+<text text-anchor="start" x="1370" y="-733" font-family="arial" font-size="10.00" fill="#000000"> pipelines.</text>
+</g>
+<!-- n1 -->
+<g id="node2" class="node">
+<title>n1</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1425.5,-428C1425.5,-428 1234.5,-428 1234.5,-428 1228.5,-428 1222.5,-422 1222.5,-416 1222.5,-416 1222.5,-296 1222.5,-296 1222.5,-290 1228.5,-284 1234.5,-284 1234.5,-284 1425.5,-284 1425.5,-284 1431.5,-284 1437.5,-290 1437.5,-296 1437.5,-296 1437.5,-416 1437.5,-416 1437.5,-422 1431.5,-428 1425.5,-428"/>
+<text text-anchor="start" x="1251.32" y="-414" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">`GPUShaderModule` should contain</text>
+<text text-anchor="start" x="1301.62" y="-404" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000"> `MTLLibrary`</text>
+<text text-anchor="start" x="1241.87" y="-389" font-family="arial" font-size="10.00" fill="#000000">WebGPU, Metal, Vulkan, and D3D12 all</text>
+<text text-anchor="start" x="1256.87" y="-377" font-family="arial" font-size="10.00" fill="#000000"> have 2&#45;stage shader compilation</text>
+<text text-anchor="start" x="1243.26" y="-365" font-family="arial" font-size="10.00" fill="#000000"> pipelines. Vulkan matches WebGPU in</text>
+<text text-anchor="start" x="1250.21" y="-353" font-family="arial" font-size="10.00" fill="#000000"> this API. `MTLLibrary` is the product</text>
+<text text-anchor="start" x="1252.98" y="-341" font-family="arial" font-size="10.00" fill="#000000"> of the first stage in Metal, however</text>
+<text text-anchor="start" x="1232.98" y="-329" font-family="arial" font-size="10.00" fill="#000000"> WebGPU implementations can not produce</text>
+<text text-anchor="start" x="1245.76" y="-317" font-family="arial" font-size="10.00" fill="#000000"> it in `createShaderModule`, because it</text>
+<text text-anchor="start" x="1249.93" y="-305" font-family="arial" font-size="10.00" fill="#000000"> requires more information about the</text>
+<text text-anchor="start" x="1245.48" y="-293" font-family="arial" font-size="10.00" fill="#000000"> pipeline. Same applies to HLSL/DXIL.</text>
+</g>
+<!-- n1&#45;&gt;n0 -->
+<g id="edge6" class="edge">
+<title>n1&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1310.37,-428.26C1289.05,-511.9 1261.02,-644.68 1285,-688 1291.43,-699.61 1300.81,-709.48 1311.37,-717.78"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1309.52,-720.76 1319.66,-723.82 1313.64,-715.1 1309.52,-720.76"/>
+</g>
+<!-- n2 -->
+<g id="node3" class="node">
+<title>n2</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1030,-546C1030,-546 854,-546 854,-546 848,-546 842,-540 842,-534 842,-534 842,-494 842,-494 842,-488 848,-482 854,-482 854,-482 1030,-482 1030,-482 1036,-482 1042,-488 1042,-494 1042,-494 1042,-534 1042,-534 1042,-540 1036,-546 1030,-546"/>
+<text text-anchor="start" x="851.7" y="-532" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Pipeline layouts in `createShaderModule`</text>
+<text text-anchor="start" x="858.92" y="-515" font-family="arial" font-size="10.00" fill="#000000">Have an ability to provide the pipeline</text>
+<text text-anchor="start" x="855.31" y="-503" font-family="arial" font-size="10.00" fill="#000000"> layouts into `createShaderModule`, per</text>
+<text text-anchor="start" x="915.88" y="-491" font-family="arial" font-size="10.00" fill="#000000"> entry point.</text>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g id="edge7" class="edge">
+<title>n1&#45;&gt;n2</title>
+<path fill="none" stroke="#00ff00" d="M1222.46,-396.63C1170.4,-416.22 1107.16,-440.63 1051,-464 1040.56,-468.35 1029.61,-473.06 1018.86,-477.8"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1017.21,-474.7 1009.48,-481.95 1020.04,-481.1 1017.21,-474.7"/>
+</g>
+<!-- n7 -->
+<g id="node8" class="node">
+<title>n7</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1028,-670C1028,-670 856,-670 856,-670 850,-670 844,-664 844,-658 844,-658 844,-630 844,-630 844,-624 850,-618 856,-618 856,-618 1028,-618 1028,-618 1034,-618 1040,-624 1040,-630 1040,-630 1040,-658 1040,-658 1040,-664 1034,-670 1028,-670"/>
+<text text-anchor="start" x="880.32" y="-656" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Keep `createShaderModule`</text>
+<text text-anchor="start" x="855.31" y="-639" font-family="arial" font-size="10.00" fill="#000000">Keep the API for module creation as is,</text>
+<text text-anchor="start" x="886.43" y="-627" font-family="arial" font-size="10.00" fill="#000000"> mostly matching Vulkan.</text>
+</g>
+<!-- n2&#45;&gt;n7 -->
+<g id="edge20" class="edge">
+<title>n2&#45;&gt;n7</title>
+<path fill="none" stroke="#ff0000" d="M936.1,-546.31C935.05,-564.8 934.97,-588.25 935.88,-607.43"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="932.4,-607.82 936.49,-617.59 939.39,-607.4 932.4,-607.82"/>
+</g>
+<!-- n3 -->
+<g id="node4" class="node">
+<title>n3</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1920,-64C1920,-64 1744,-64 1744,-64 1738,-64 1732,-58 1732,-52 1732,-52 1732,-28 1732,-28 1732,-22 1738,-16 1744,-16 1744,-16 1920,-16 1920,-16 1926,-16 1932,-22 1932,-28 1932,-28 1932,-52 1932,-52 1932,-58 1926,-64 1920,-64"/>
+<text text-anchor="start" x="1741.63" y="-49" font-family="arial" font-size="10.00" fill="#000000">@litherum showed the numbers from the</text>
+<text text-anchor="start" x="1750.32" y="-37" font-family="arial" font-size="10.00" fill="#000000"> Metal Performance Shaders running</text>
+<text text-anchor="start" x="1785.34" y="-25" font-family="arial" font-size="10.00" fill="#000000"> matrix multiplication.</text>
+</g>
+<!-- n14 -->
+<g id="node15" class="node">
+<title>n14</title>
+<path fill="#1b9e77" stroke="black" d="M1920,-224C1920,-224 1748,-224 1748,-224 1742,-224 1736,-218 1736,-212 1736,-212 1736,-136 1736,-136 1736,-130 1742,-124 1748,-124 1748,-124 1920,-124 1920,-124 1926,-124 1932,-130 1932,-136 1932,-136 1932,-212 1932,-212 1932,-218 1926,-224 1920,-224"/>
+<text text-anchor="start" x="1751.78" y="-210" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Metal&#39;s `createShaderModule` is slow</text>
+<text text-anchor="start" x="1752.88" y="-193" font-family="arial" font-size="10.00" fill="#000000">`createShaderModule` is slow, thus it</text>
+<text text-anchor="start" x="1750.64" y="-181" font-family="arial" font-size="10.00" fill="#000000"> makes sense to do it early before the</text>
+<text text-anchor="start" x="1765.09" y="-169" font-family="arial" font-size="10.00" fill="#000000"> pipelines are created. Roughly</text>
+<text text-anchor="start" x="1757.31" y="-157" font-family="arial" font-size="10.00" fill="#000000"> speaking, it takes as much time to</text>
+<text text-anchor="start" x="1755.65" y="-145" font-family="arial" font-size="10.00" fill="#000000"> generate `MTLLibrary` as it does to</text>
+<text text-anchor="start" x="1750.93" y="-133" font-family="arial" font-size="10.00" fill="#000000"> create an `MTLRenderPipelineState`.</text>
+</g>
+<!-- n3&#45;&gt;n14 -->
+<g id="edge8" class="edge">
+<title>n3&#45;&gt;n14</title>
+<path fill="none" stroke="#00ff00" d="M1832.35,-64.3C1832.56,-78.09 1832.84,-96.25 1833.1,-113.77"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1829.61,-114.03 1833.26,-123.97 1836.61,-113.92 1829.61,-114.03"/>
+</g>
+<!-- n4 -->
+<g id="node5" class="node">
+<title>n4</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1701.5,-64C1701.5,-64 1524.5,-64 1524.5,-64 1518.5,-64 1512.5,-58 1512.5,-52 1512.5,-52 1512.5,-28 1512.5,-28 1512.5,-22 1518.5,-16 1524.5,-16 1524.5,-16 1701.5,-16 1701.5,-16 1707.5,-16 1713.5,-22 1713.5,-28 1713.5,-28 1713.5,-52 1713.5,-52 1713.5,-58 1707.5,-64 1701.5,-64"/>
+<text text-anchor="start" x="1522.58" y="-49" font-family="arial" font-size="10.00" fill="#000000">@kvark showed the numbers from Dota2</text>
+<text text-anchor="start" x="1541.54" y="-37" font-family="arial" font-size="10.00" fill="#000000"> shaders transpiling to Metal in a</text>
+<text text-anchor="start" x="1536.82" y="-25" font-family="arial" font-size="10.00" fill="#000000"> Vulkan Portability implementation.</text>
+</g>
+<!-- n4&#45;&gt;n14 -->
+<g id="edge9" class="edge">
+<title>n4&#45;&gt;n14</title>
+<path fill="none" stroke="#00ff00" d="M1660.85,-64.14C1681.51,-74.55 1705.76,-87.32 1727,-100 1736.56,-105.71 1746.42,-111.93 1756.11,-118.27"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1754.3,-121.27 1764.57,-123.85 1758.16,-115.42 1754.3,-121.27"/>
+</g>
+<!-- n5 -->
+<g id="node6" class="node">
+<title>n5</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M1482.5,-58C1482.5,-58 1301.5,-58 1301.5,-58 1295.5,-58 1289.5,-52 1289.5,-46 1289.5,-46 1289.5,-34 1289.5,-34 1289.5,-28 1295.5,-22 1301.5,-22 1301.5,-22 1482.5,-22 1482.5,-22 1488.5,-22 1494.5,-28 1494.5,-34 1494.5,-34 1494.5,-46 1494.5,-46 1494.5,-52 1488.5,-58 1482.5,-58"/>
+<text text-anchor="start" x="1299.9" y="-43" font-family="arial" font-size="10.00" fill="#000000">@Kangz showed the numbers with forced</text>
+<text text-anchor="start" x="1336.1" y="-31" font-family="arial" font-size="10.00" fill="#000000"> driver cache invalidation.</text>
+</g>
+<!-- n5&#45;&gt;n14 -->
+<g id="edge10" class="edge">
+<title>n5&#45;&gt;n14</title>
+<path fill="none" stroke="#00ff00" d="M1472.98,-58.05C1483.4,-60.12 1493.94,-62.16 1504,-64 1602.75,-82.1 1633.74,-62.82 1727,-100 1739.23,-104.88 1751.47,-111.34 1763.07,-118.42"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1761.48,-121.55 1771.8,-123.93 1765.21,-115.63 1761.48,-121.55"/>
+</g>
+<!-- n6 -->
+<g id="node7" class="node">
+<title>n6</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M758,-552C758,-552 574,-552 574,-552 568,-552 562,-546 562,-540 562,-540 562,-488 562,-488 562,-482 568,-476 574,-476 574,-476 758,-476 758,-476 764,-476 770,-482 770,-488 770,-488 770,-540 770,-540 770,-546 764,-552 758,-552"/>
+<text text-anchor="start" x="616.83" y="-538" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Have `precompile` API</text>
+<text text-anchor="start" x="571.81" y="-521" font-family="arial" font-size="10.00" fill="#000000">Add some API on the `GPUShaderModule`</text>
+<text text-anchor="start" x="594.03" y="-509" font-family="arial" font-size="10.00" fill="#000000"> to tell it ahead of time the bits of</text>
+<text text-anchor="start" x="585.41" y="-497" font-family="arial" font-size="10.00" fill="#000000"> the pipeline that the contained entry</text>
+<text text-anchor="start" x="606.27" y="-485" font-family="arial" font-size="10.00" fill="#000000"> points will be created with.</text>
+</g>
+<!-- n7&#45;&gt;n0 -->
+<g id="edge22" class="edge">
+<title>n7&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1040.2,-669C1111.35,-686.4 1207.63,-709.93 1281.48,-727.98"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1280.74,-731.41 1291.29,-730.38 1282.4,-724.61 1280.74,-731.41"/>
+</g>
+<!-- n7&#45;&gt;n2 -->
+<g id="edge21" class="edge">
+<title>n7&#45;&gt;n2</title>
+<path fill="none" stroke="#ff0000" d="M947.51,-617.59C948.8,-600.15 949.08,-576.61 948.36,-556.48"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="951.85,-556.14 947.9,-546.31 944.86,-556.46 951.85,-556.14"/>
+</g>
+<!-- n8 -->
+<g id="node9" class="node">
+<title>n8</title>
+<path fill="white" stroke="#1b9e77" stroke-width="2" d="M504,-546C504,-546 332,-546 332,-546 326,-546 320,-540 320,-534 320,-534 320,-494 320,-494 320,-488 326,-482 332,-482 332,-482 504,-482 504,-482 510,-482 516,-488 516,-494 516,-494 516,-534 516,-534 516,-540 510,-546 504,-546"/>
+<text text-anchor="start" x="354.1" y="-532" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Have `createReadyPipelines`</text>
+<text text-anchor="start" x="350.76" y="-515" font-family="arial" font-size="10.00" fill="#000000">WebGPU should have a plural</text>
+<text text-anchor="start" x="333.26" y="-503" font-family="arial" font-size="10.00" fill="#000000"> `createReadyPipelines` asynchronous</text>
+<text text-anchor="start" x="398.55" y="-491" font-family="arial" font-size="10.00" fill="#000000"> method.</text>
+</g>
+<!-- n9 -->
+<g id="node10" class="node">
+<title>n9</title>
+<path fill="#1b9e77" stroke="black" d="M1920,-664C1920,-664 1734,-664 1734,-664 1728,-664 1722,-658 1722,-652 1722,-652 1722,-636 1722,-636 1722,-630 1728,-624 1734,-624 1734,-624 1920,-624 1920,-624 1926,-624 1932,-630 1932,-636 1932,-636 1932,-652 1932,-652 1932,-658 1926,-664 1920,-664"/>
+<text text-anchor="start" x="1774.49" y="-650" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">vkCreateShaderModule</text>
+<text text-anchor="start" x="1731.71" y="-633" font-family="arial" font-size="10.00" fill="#000000">matches Vulkan&#39;s `vkCreateShaderModule`</text>
+</g>
+<!-- n9&#45;&gt;n0 -->
+<g id="edge1" class="edge">
+<title>n9&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1781.51,-664.01C1760.85,-672.16 1735.95,-681.32 1713,-688 1643.99,-708.09 1564.98,-724.65 1502.61,-736.29"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1501.95,-732.85 1492.75,-738.12 1503.22,-739.74 1501.95,-732.85"/>
+</g>
+<!-- n10 -->
+<g id="node11" class="node">
+<title>n10</title>
+<path fill="#1b9e77" stroke="black" d="M1692,-688C1692,-688 1520,-688 1520,-688 1514,-688 1508,-682 1508,-676 1508,-676 1508,-612 1508,-612 1508,-606 1514,-600 1520,-600 1520,-600 1692,-600 1692,-600 1698,-600 1704,-606 1704,-612 1704,-612 1704,-676 1704,-676 1704,-682 1698,-688 1692,-688"/>
+<text text-anchor="start" x="1556.82" y="-674" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Parsing and validation</text>
+<text text-anchor="start" x="1519.04" y="-657" font-family="arial" font-size="10.00" fill="#000000">allows us to parse WGSL, build IR, and</text>
+<text text-anchor="start" x="1526.81" y="-645" font-family="arial" font-size="10.00" fill="#000000"> validate it. This guarantees that the</text>
+<text text-anchor="start" x="1521.81" y="-633" font-family="arial" font-size="10.00" fill="#000000"> only errors that could happen later on</text>
+<text text-anchor="start" x="1527.36" y="-621" font-family="arial" font-size="10.00" fill="#000000"> with a shader are about the shader</text>
+<text text-anchor="start" x="1584.05" y="-609" font-family="arial" font-size="10.00" fill="#000000"> interface.</text>
+</g>
+<!-- n10&#45;&gt;n0 -->
+<g id="edge2" class="edge">
+<title>n10&#45;&gt;n0</title>
+<path fill="none" stroke="#00ff00" d="M1522.34,-688C1502.2,-698.35 1480.9,-709.3 1461.49,-719.28"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1459.72,-716.26 1452.42,-723.94 1462.92,-722.48 1459.72,-716.26"/>
+</g>
+<!-- n11 -->
+<g id="node12" class="node">
+<title>n11</title>
+<path fill="#1b9e77" stroke="black" d="M1478,-670C1478,-670 1306,-670 1306,-670 1300,-670 1294,-664 1294,-658 1294,-658 1294,-630 1294,-630 1294,-624 1300,-618 1306,-618 1306,-618 1478,-618 1478,-618 1484,-618 1490,-624 1490,-630 1490,-630 1490,-658 1490,-658 1490,-664 1484,-670 1478,-670"/>
+<text text-anchor="start" x="1355.33" y="-656" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Raw non&#45;Vulkan</text>
+<text text-anchor="start" x="1309.2" y="-639" font-family="arial" font-size="10.00" fill="#000000">on non&#45;Vulkan, there are no low&#45;level</text>
+<text text-anchor="start" x="1324.2" y="-627" font-family="arial" font-size="10.00" fill="#000000"> objects to create at this stage.</text>
+</g>
+<!-- n11&#45;&gt;n0 -->
+<g id="edge3" class="edge">
+<title>n11&#45;&gt;n0</title>
+<path fill="none" stroke="#ff0000" d="M1392,-670.24C1392,-683.1 1392,-699.07 1392,-713.67"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="1388.5,-713.99 1392,-723.99 1395.5,-713.99 1388.5,-713.99"/>
+</g>
+<!-- n12 -->
+<g id="node13" class="node">
+<title>n12</title>
+<path fill="#1b9e77" stroke="black" d="M1706,-224C1706,-224 1528,-224 1528,-224 1522,-224 1516,-218 1516,-212 1516,-212 1516,-136 1516,-136 1516,-130 1522,-124 1528,-124 1528,-124 1706,-124 1706,-124 1712,-124 1718,-130 1718,-136 1718,-136 1718,-212 1718,-212 1718,-218 1712,-224 1706,-224"/>
+<text text-anchor="start" x="1566.72" y="-210" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">newLibraryWithSource</text>
+<text text-anchor="start" x="1525.61" y="-193" font-family="arial" font-size="10.00" fill="#000000">matches Metal&#39;s `newLibraryWithSource`.</text>
+<text text-anchor="start" x="1530.6" y="-181" font-family="arial" font-size="10.00" fill="#000000"> When Metal developers write shaders,</text>
+<text text-anchor="start" x="1538.64" y="-169" font-family="arial" font-size="10.00" fill="#000000"> they have to define the structure of</text>
+<text text-anchor="start" x="1538.37" y="-157" font-family="arial" font-size="10.00" fill="#000000"> argument buffers inside the shader</text>
+<text text-anchor="start" x="1528.38" y="-145" font-family="arial" font-size="10.00" fill="#000000"> code. This roughly matches WebGPU&#39;s</text>
+<text text-anchor="start" x="1568.38" y="-133" font-family="arial" font-size="10.00" fill="#000000"> `GPUPipelineLayout`.</text>
+</g>
+<!-- n12&#45;&gt;n1 -->
+<g id="edge4" class="edge">
+<title>n12&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M1543.91,-224.12C1531.64,-232.19 1519,-240.39 1507,-248 1487.49,-260.36 1466.62,-273.26 1446.29,-285.66"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1444.34,-282.75 1437.62,-290.93 1447.98,-288.73 1444.34,-282.75"/>
+</g>
+<!-- n13 -->
+<g id="node14" class="node">
+<title>n13</title>
+<path fill="#1b9e77" stroke="black" d="M1486,-200C1486,-200 1314,-200 1314,-200 1308,-200 1302,-194 1302,-188 1302,-188 1302,-160 1302,-160 1302,-154 1308,-148 1314,-148 1314,-148 1486,-148 1486,-148 1492,-148 1498,-154 1498,-160 1498,-160 1498,-188 1498,-188 1498,-194 1492,-200 1486,-200"/>
+<text text-anchor="start" x="1371.67" y="-186" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">D3DCompile</text>
+<text text-anchor="start" x="1316.68" y="-169" font-family="arial" font-size="10.00" fill="#000000">matches D3D&#39;s `D3DCompile` &#45; would</text>
+<text text-anchor="start" x="1316.09" y="-157" font-family="arial" font-size="10.00" fill="#000000"> produce HLSL/DXIL in the first stage.</text>
+</g>
+<!-- n13&#45;&gt;n1 -->
+<g id="edge5" class="edge">
+<title>n13&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M1390.27,-200.03C1382.71,-219.47 1371.78,-247.58 1361.29,-274.53"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1357.97,-273.41 1357.61,-284 1364.5,-275.95 1357.97,-273.41"/>
+</g>
+<!-- n14&#45;&gt;n1 -->
+<g id="edge11" class="edge">
+<title>n14&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M1769.56,-224.01C1755.99,-232.87 1741.4,-241.38 1727,-248 1637.44,-289.18 1528.98,-317.07 1448.07,-334.02"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1446.93,-330.68 1437.85,-336.14 1448.35,-337.54 1446.93,-330.68"/>
+</g>
+<!-- n15 -->
+<g id="node16" class="node">
+<title>n15</title>
+<path fill="#1b9e77" stroke="black" d="M972,-388C972,-388 794,-388 794,-388 788,-388 782,-382 782,-376 782,-376 782,-336 782,-336 782,-330 788,-324 794,-324 794,-324 972,-324 972,-324 978,-324 984,-330 984,-336 984,-336 984,-376 984,-376 984,-382 978,-388 972,-388"/>
+<text text-anchor="start" x="833" y="-374" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Full pipeline descriptor</text>
+<text text-anchor="start" x="797.71" y="-357" font-family="arial" font-size="10.00" fill="#000000">In order to create `MTLLibrary` or DXIL</text>
+<text text-anchor="start" x="791.59" y="-345" font-family="arial" font-size="10.00" fill="#000000"> from WGSL code, we&#39;d need most of the</text>
+<text text-anchor="start" x="799.1" y="-333" font-family="arial" font-size="10.00" fill="#000000"> `GPURenderPipelineDescriptor` data.</text>
+</g>
+<!-- n15&#45;&gt;n2 -->
+<g id="edge18" class="edge">
+<title>n15&#45;&gt;n2</title>
+<path fill="none" stroke="#ff0000" d="M894.8,-388.19C903.92,-412.32 916.63,-445.93 926.57,-472.19"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="923.41,-473.74 930.22,-481.86 929.96,-471.27 923.41,-473.74"/>
+</g>
+<!-- n15&#45;&gt;n6 -->
+<g id="edge19" class="edge">
+<title>n15&#45;&gt;n6</title>
+<path fill="none" stroke="#00ff00" d="M839.87,-388.01C807.37,-411.37 762.4,-443.7 726.34,-469.62"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="723.92,-467.05 717.85,-475.73 728.01,-472.73 723.92,-467.05"/>
+</g>
+<!-- n16 -->
+<g id="node17" class="node">
+<title>n16</title>
+<path fill="#1b9e77" stroke="black" d="M1272,-212C1272,-212 1100,-212 1100,-212 1094,-212 1088,-206 1088,-200 1088,-200 1088,-148 1088,-148 1088,-142 1094,-136 1100,-136 1100,-136 1272,-136 1272,-136 1278,-136 1284,-142 1284,-148 1284,-148 1284,-200 1284,-200 1284,-206 1278,-212 1272,-212"/>
+<text text-anchor="start" x="1159.33" y="-198" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Need layout</text>
+<text text-anchor="start" x="1101.26" y="-181" font-family="arial" font-size="10.00" fill="#000000">knowing the pipeline layout is required</text>
+<text text-anchor="start" x="1102.09" y="-169" font-family="arial" font-size="10.00" fill="#000000"> to assign the proper resource binding</text>
+<text text-anchor="start" x="1115.71" y="-157" font-family="arial" font-size="10.00" fill="#000000"> indices, as well as define Metal</text>
+<text text-anchor="start" x="1145.43" y="-145" font-family="arial" font-size="10.00" fill="#000000"> argument buffers.</text>
+</g>
+<!-- n16&#45;&gt;n2 -->
+<g id="edge12" class="edge">
+<title>n16&#45;&gt;n2</title>
+<path fill="none" stroke="#00ff00" d="M1159.19,-212.14C1112.86,-276.31 1018.24,-407.39 970.66,-473.3"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="967.56,-471.61 964.55,-481.77 973.24,-475.71 967.56,-471.61"/>
+</g>
+<!-- n16&#45;&gt;n15 -->
+<g id="edge13" class="edge">
+<title>n16&#45;&gt;n15</title>
+<path fill="none" stroke="#00ff00" d="M1133.89,-212.07C1116.65,-223.92 1097.22,-236.85 1079,-248 1037.83,-273.2 990.34,-299.2 952.41,-319.26"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="950.7,-316.21 943.49,-323.97 953.97,-322.4 950.7,-316.21"/>
+</g>
+<!-- n17 -->
+<g id="node18" class="node">
+<title>n17</title>
+<path fill="#1b9e77" stroke="black" d="M416,-248C416,-248 244,-248 244,-248 238,-248 232,-242 232,-236 232,-236 232,-112 232,-112 232,-106 238,-100 244,-100 244,-100 416,-100 416,-100 422,-100 428,-106 428,-112 428,-112 428,-236 428,-236 428,-242 422,-248 416,-248"/>
+<text text-anchor="start" x="287.22" y="-234" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Need sample mask</text>
+<text text-anchor="start" x="249.98" y="-217" font-family="arial" font-size="10.00" fill="#000000">On Metal, we have to implement the</text>
+<text text-anchor="start" x="242.21" y="-205" font-family="arial" font-size="10.00" fill="#000000"> per&#45;pipeline sample mask by modifying</text>
+<text text-anchor="start" x="243.87" y="-193" font-family="arial" font-size="10.00" fill="#000000"> the `[[sample_mask]]` fragment shader</text>
+<text text-anchor="start" x="272.2" y="-181" font-family="arial" font-size="10.00" fill="#000000"> output in code. Doing this</text>
+<text text-anchor="start" x="246.93" y="-169" font-family="arial" font-size="10.00" fill="#000000"> unconditionally would disable early&#45;Z</text>
+<text text-anchor="start" x="266.09" y="-157" font-family="arial" font-size="10.00" fill="#000000"> tests, bearing a high cost on</text>
+<text text-anchor="start" x="244.15" y="-145" font-family="arial" font-size="10.00" fill="#000000"> performance. So we should only inject</text>
+<text text-anchor="start" x="249.7" y="-133" font-family="arial" font-size="10.00" fill="#000000"> this code in shaders that rely on the</text>
+<text text-anchor="start" x="242.2" y="-121" font-family="arial" font-size="10.00" fill="#000000"> pipeline sample mask, and the value of</text>
+<text text-anchor="start" x="288.05" y="-109" font-family="arial" font-size="10.00" fill="#000000"> it being non&#45;trivial.</text>
+</g>
+<!-- n17&#45;&gt;n15 -->
+<g id="edge14" class="edge">
+<title>n17&#45;&gt;n15</title>
+<path fill="none" stroke="#00ff00" d="M428.15,-244.45C431.09,-245.73 434.05,-246.91 437,-248 577.94,-299.88 631.41,-233.92 773,-284 795.3,-291.89 817.65,-305.09 836.32,-317.99"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="834.44,-320.95 844.62,-323.88 838.49,-315.24 834.44,-320.95"/>
+</g>
+<!-- n18 -->
+<g id="node19" class="node">
+<title>n18</title>
+<path fill="#1b9e77" stroke="black" d="M1058,-212C1058,-212 886,-212 886,-212 880,-212 874,-206 874,-200 874,-200 874,-148 874,-148 874,-142 880,-136 886,-136 886,-136 1058,-136 1058,-136 1064,-136 1070,-142 1070,-148 1070,-148 1070,-200 1070,-200 1070,-206 1064,-212 1058,-212"/>
+<text text-anchor="start" x="935.6" y="-198" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Need depth bias</text>
+<text text-anchor="start" x="888.65" y="-181" font-family="arial" font-size="10.00" fill="#000000">On drivers/platforms that don&#39;t have a</text>
+<text text-anchor="start" x="896.98" y="-169" font-family="arial" font-size="10.00" fill="#000000"> proper depth bias state, we could</text>
+<text text-anchor="start" x="900.87" y="-157" font-family="arial" font-size="10.00" fill="#000000"> emulate it by injecting code into</text>
+<text text-anchor="start" x="936.44" y="-145" font-family="arial" font-size="10.00" fill="#000000"> vertex shaders.</text>
+</g>
+<!-- n18&#45;&gt;n15 -->
+<g id="edge15" class="edge">
+<title>n18&#45;&gt;n15</title>
+<path fill="none" stroke="#00ff00" d="M953.56,-212.3C938.79,-242.16 918.12,-283.97 902.96,-314.62"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="899.75,-313.23 898.45,-323.75 906.02,-316.34 899.75,-313.23"/>
+</g>
+<!-- n19 -->
+<g id="node20" class="node">
+<title>n19</title>
+<path fill="#1b9e77" stroke="black" d="M844,-218C844,-218 672,-218 672,-218 666,-218 660,-212 660,-206 660,-206 660,-142 660,-142 660,-136 666,-130 672,-130 672,-130 844,-130 844,-130 850,-130 856,-136 856,-142 856,-142 856,-206 856,-206 856,-212 850,-218 844,-218"/>
+<text text-anchor="start" x="718.82" y="-204" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Need vertex input</text>
+<text text-anchor="start" x="671.31" y="-187" font-family="arial" font-size="10.00" fill="#000000">Dawn and wgpu want to have an ability</text>
+<text text-anchor="start" x="674.09" y="-175" font-family="arial" font-size="10.00" fill="#000000"> to implement out&#45;of&#45;bound checks for</text>
+<text text-anchor="start" x="679.66" y="-163" font-family="arial" font-size="10.00" fill="#000000"> vertex attributes via programmable</text>
+<text text-anchor="start" x="674.93" y="-151" font-family="arial" font-size="10.00" fill="#000000"> pulling on Metal. This requires vertex</text>
+<text text-anchor="start" x="709.09" y="-139" font-family="arial" font-size="10.00" fill="#000000"> shader code injected.</text>
+</g>
+<!-- n19&#45;&gt;n15 -->
+<g id="edge16" class="edge">
+<title>n19&#45;&gt;n15</title>
+<path fill="none" stroke="#00ff00" d="M787.94,-218.11C808.43,-247.62 835.39,-286.44 855.37,-315.21"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="852.75,-317.57 861.33,-323.79 858.5,-313.58 852.75,-317.57"/>
+</g>
+<!-- n20 -->
+<g id="node21" class="node">
+<title>n20</title>
+<path fill="#1b9e77" stroke="black" d="M630,-218C630,-218 458,-218 458,-218 452,-218 446,-212 446,-206 446,-206 446,-142 446,-142 446,-136 452,-130 458,-130 458,-130 630,-130 630,-130 636,-130 642,-136 642,-142 642,-142 642,-206 642,-206 642,-212 636,-218 630,-218"/>
+<text text-anchor="start" x="510.66" y="-204" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Need unknown</text>
+<text text-anchor="start" x="467.88" y="-187" font-family="arial" font-size="10.00" fill="#000000">We don&#39;t know what other pipeline</text>
+<text text-anchor="start" x="472.04" y="-175" font-family="arial" font-size="10.00" fill="#000000"> states we&#39;d need in the future in</text>
+<text text-anchor="start" x="465.93" y="-163" font-family="arial" font-size="10.00" fill="#000000"> order to modify/inject shader code,</text>
+<text text-anchor="start" x="458.98" y="-151" font-family="arial" font-size="10.00" fill="#000000"> related to possible HW and driver bug</text>
+<text text-anchor="start" x="512.61" y="-139" font-family="arial" font-size="10.00" fill="#000000"> workarounds.</text>
+</g>
+<!-- n20&#45;&gt;n15 -->
+<g id="edge17" class="edge">
+<title>n20&#45;&gt;n15</title>
+<path fill="none" stroke="#00ff00" d="M600.05,-218.05C615.92,-228.88 633.63,-239.76 651,-248 702.08,-272.22 721.61,-260.43 773,-284 793.33,-293.32 814.28,-305.97 832.38,-318.01"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="830.77,-321.15 841.01,-323.85 834.69,-315.35 830.77,-321.15"/>
+</g>
+<!-- n21 -->
+<g id="node22" class="node">
+<title>n21</title>
+<path fill="#1b9e77" stroke="black" d="M234,-552C234,-552 56,-552 56,-552 50,-552 44,-546 44,-540 44,-540 44,-488 44,-488 44,-482 50,-476 56,-476 56,-476 234,-476 234,-476 240,-476 246,-482 246,-488 246,-488 246,-540 246,-540 246,-546 240,-552 234,-552"/>
+<text text-anchor="start" x="128.05" y="-538" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Caches</text>
+<text text-anchor="start" x="64.15" y="-521" font-family="arial" font-size="10.00" fill="#000000">The combination of driver cache and</text>
+<text text-anchor="start" x="61.37" y="-509" font-family="arial" font-size="10.00" fill="#000000"> browser cache can drastically reduce</text>
+<text text-anchor="start" x="53.87" y="-497" font-family="arial" font-size="10.00" fill="#000000"> the number of cases where we&#39;d have to</text>
+<text text-anchor="start" x="84.72" y="-485" font-family="arial" font-size="10.00" fill="#000000"> create a new `MTLLibrary`.</text>
+</g>
+<!-- n21&#45;&gt;n7 -->
+<g id="edge23" class="edge">
+<title>n21&#45;&gt;n7</title>
+<path fill="none" stroke="#00ff00" d="M246.17,-547.7C267.42,-553.77 289.82,-559.58 311,-564 492.51,-601.89 707.45,-624.07 833.83,-634.84"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="833.64,-638.34 843.9,-635.69 834.23,-631.36 833.64,-638.34"/>
+</g>
+<!-- n22 -->
+<g id="node23" class="node">
+<title>n22</title>
+<path fill="#1b9e77" stroke="black" d="M1244,-564C1244,-564 1072,-564 1072,-564 1066,-564 1060,-558 1060,-552 1060,-552 1060,-476 1060,-476 1060,-470 1066,-464 1072,-464 1072,-464 1244,-464 1244,-464 1250,-464 1256,-470 1256,-476 1256,-476 1256,-552 1256,-552 1256,-558 1250,-564 1244,-564"/>
+<text text-anchor="start" x="1122.72" y="-550" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Target LLVM IR</text>
+<text text-anchor="start" x="1074.37" y="-533" font-family="arial" font-size="10.00" fill="#000000">The implementations could target AIR</text>
+<text text-anchor="start" x="1077.43" y="-521" font-family="arial" font-size="10.00" fill="#000000"> and DXIL directly, in which case the</text>
+<text text-anchor="start" x="1073.81" y="-509" font-family="arial" font-size="10.00" fill="#000000"> cost of producing it would be reduced</text>
+<text text-anchor="start" x="1072.14" y="-497" font-family="arial" font-size="10.00" fill="#000000"> compare to the current model that has</text>
+<text text-anchor="start" x="1083.82" y="-485" font-family="arial" font-size="10.00" fill="#000000"> a text format MSL or HLSL as an</text>
+<text text-anchor="start" x="1127.72" y="-473" font-family="arial" font-size="10.00" fill="#000000"> intermediate.</text>
+</g>
+<!-- n22&#45;&gt;n7 -->
+<g id="edge24" class="edge">
+<title>n22&#45;&gt;n7</title>
+<path fill="none" stroke="#00ff00" d="M1075.11,-564.12C1047.45,-580.51 1017.47,-598.28 992.98,-612.79"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="991.03,-609.87 984.22,-617.98 994.6,-615.9 991.03,-609.87"/>
+</g>
+<!-- n23 -->
+<g id="node24" class="node">
+<title>n23</title>
+<path fill="#1b9e77" stroke="black" d="M201.5,-236C201.5,-236 28.5,-236 28.5,-236 22.5,-236 16.5,-230 16.5,-224 16.5,-224 16.5,-124 16.5,-124 16.5,-118 22.5,-112 28.5,-112 28.5,-112 201.5,-112 201.5,-112 207.5,-112 213.5,-118 213.5,-124 213.5,-124 213.5,-224 213.5,-224 213.5,-230 207.5,-236 201.5,-236"/>
+<text text-anchor="start" x="71.05" y="-222" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Multiple entry points</text>
+<text text-anchor="start" x="28.54" y="-205" font-family="arial" font-size="10.00" fill="#000000">An ideal Metal application would re&#45;use</text>
+<text text-anchor="start" x="41.33" y="-193" font-family="arial" font-size="10.00" fill="#000000"> `MTLLibrary` for multiple different</text>
+<text text-anchor="start" x="49.65" y="-181" font-family="arial" font-size="10.00" fill="#000000"> entry points in the pipelines it</text>
+<text text-anchor="start" x="26.6" y="-169" font-family="arial" font-size="10.00" fill="#000000"> creates. That is unlike WebGPU, where</text>
+<text text-anchor="start" x="37.98" y="-157" font-family="arial" font-size="10.00" fill="#000000"> an implementation can only create</text>
+<text text-anchor="start" x="37.72" y="-145" font-family="arial" font-size="10.00" fill="#000000"> `MTLLibrary` when it has a specific</text>
+<text text-anchor="start" x="29.09" y="-133" font-family="arial" font-size="10.00" fill="#000000"> entry point selected, and doesn&#39;t know</text>
+<text text-anchor="start" x="50.75" y="-121" font-family="arial" font-size="10.00" fill="#000000"> about any other entry points.</text>
+</g>
+<!-- n23&#45;&gt;n1 -->
+<g id="edge25" class="edge">
+<title>n23&#45;&gt;n1</title>
+<path fill="none" stroke="#00ff00" d="M195.7,-236.14C204.58,-240.84 213.76,-244.93 223,-248 385.57,-301.97 823.09,-262.27 993,-284 1066.62,-293.41 1148.08,-310.39 1212.46,-325.38"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="1211.7,-328.8 1222.24,-327.68 1213.3,-321.99 1211.7,-328.8"/>
+</g>
+<!-- n23&#45;&gt;n21 -->
+<g id="edge26" class="edge">
+<title>n23&#45;&gt;n21</title>
+<path fill="none" stroke="#ff0000" d="M114.15,-236.12C114.21,-287.54 116.14,-362.88 125,-428 126.68,-440.32 129.33,-453.48 132.17,-465.66"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="128.83,-466.73 134.57,-475.63 135.63,-465.09 128.83,-466.73"/>
+</g>
+<!-- n24 -->
+<g id="node25" class="node">
+<title>n24</title>
+<path fill="#1b9e77" stroke="black" d="M538,-394C538,-394 366,-394 366,-394 360,-394 354,-388 354,-382 354,-382 354,-330 354,-330 354,-324 360,-318 366,-318 366,-318 538,-318 538,-318 544,-318 550,-324 550,-330 550,-330 550,-382 550,-382 550,-388 544,-394 538,-394"/>
+<text text-anchor="start" x="428.66" y="-380" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">All at once</text>
+<text text-anchor="start" x="377.82" y="-363" font-family="arial" font-size="10.00" fill="#000000">Given a list of entry points with all</text>
+<text text-anchor="start" x="372.26" y="-351" font-family="arial" font-size="10.00" fill="#000000"> the associated pipeline information,</text>
+<text text-anchor="start" x="371.43" y="-339" font-family="arial" font-size="10.00" fill="#000000"> an implementation can create fewer</text>
+<text text-anchor="start" x="380.05" y="-327" font-family="arial" font-size="10.00" fill="#000000"> `MTLLibrary` and `DXIL` objects.</text>
+</g>
+<!-- n23&#45;&gt;n24 -->
+<g id="edge27" class="edge">
+<title>n23&#45;&gt;n24</title>
+<path fill="none" stroke="#00ff00" d="M200.26,-236.02C207.79,-240.36 215.43,-244.43 223,-248 274.13,-272.11 293.76,-260.1 345,-284 361.79,-291.83 378.96,-302.06 394.49,-312.31"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="392.68,-315.31 402.93,-317.98 396.59,-309.5 392.68,-315.31"/>
+</g>
+<!-- n24&#45;&gt;n6 -->
+<g id="edge28" class="edge">
+<title>n24&#45;&gt;n6</title>
+<path fill="none" stroke="#00ff00" d="M502.99,-394.17C534.21,-416.93 574.31,-446.16 606.91,-469.93"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="604.89,-472.78 615.03,-475.85 609.01,-467.13 604.89,-472.78"/>
+</g>
+<!-- n24&#45;&gt;n8 -->
+<g id="edge29" class="edge">
+<title>n24&#45;&gt;n8</title>
+<path fill="none" stroke="#00ff00" d="M443.86,-394.37C438.75,-417.79 432.17,-448 426.92,-472.07"/>
+<polygon fill="#00ff00" stroke="#00ff00" points="423.47,-471.46 424.76,-481.97 430.31,-472.95 423.47,-471.46"/>
+</g>
+<!-- n25 -->
+<g id="node26" class="node">
+<title>n25</title>
+<path fill="#1b9e77" stroke="black" d="M324,-400C324,-400 146,-400 146,-400 140,-400 134,-394 134,-388 134,-388 134,-324 134,-324 134,-318 140,-312 146,-312 146,-312 324,-312 324,-312 330,-312 336,-318 336,-324 336,-324 336,-388 336,-388 336,-394 330,-400 324,-400"/>
+<text text-anchor="start" x="204.44" y="-386" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Combinations</text>
+<text text-anchor="start" x="143.87" y="-369" font-family="arial" font-size="10.00" fill="#000000">Users may not know ahead of time which</text>
+<text text-anchor="start" x="155.54" y="-357" font-family="arial" font-size="10.00" fill="#000000"> vertex shaders are used with which</text>
+<text text-anchor="start" x="152.48" y="-345" font-family="arial" font-size="10.00" fill="#000000"> fragment shaders. In Metal, they can</text>
+<text text-anchor="start" x="154.17" y="-333" font-family="arial" font-size="10.00" fill="#000000"> still mix and match `MTLLibrary` use</text>
+<text text-anchor="start" x="188.6" y="-321" font-family="arial" font-size="10.00" fill="#000000"> for pipeline creation.</text>
+</g>
+<!-- n25&#45;&gt;n8 -->
+<g id="edge30" class="edge">
+<title>n25&#45;&gt;n8</title>
+<path fill="none" stroke="#ff0000" d="M285.49,-400.04C313.22,-423.68 347.29,-452.72 373.94,-475.44"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="371.72,-478.15 381.6,-481.97 376.26,-472.82 371.72,-478.15"/>
+</g>
+<!-- n26 -->
+<g id="node27" class="node">
+<title>n26</title>
+<path fill="#1b9e77" stroke="black" d="M752,-406C752,-406 580,-406 580,-406 574,-406 568,-400 568,-394 568,-394 568,-318 568,-318 568,-312 574,-306 580,-306 580,-306 752,-306 752,-306 758,-306 764,-312 764,-318 764,-318 764,-394 764,-394 764,-400 758,-406 752,-406"/>
+<text text-anchor="start" x="629.05" y="-392" font-family="arial" font-weight="bold" font-size="10.00" fill="#000000">Precompile spec</text>
+<text text-anchor="start" x="593.49" y="-375" font-family="arial" font-size="10.00" fill="#000000">it&#39;s difficult to specify this and set</text>
+<text text-anchor="start" x="589.86" y="-363" font-family="arial" font-size="10.00" fill="#000000"> up the proper expectations for the</text>
+<text text-anchor="start" x="595.98" y="-351" font-family="arial" font-size="10.00" fill="#000000"> users, as in: what would be the</text>
+<text text-anchor="start" x="588.19" y="-339" font-family="arial" font-size="10.00" fill="#000000"> difference between hinting and not</text>
+<text text-anchor="start" x="594.3" y="-327" font-family="arial" font-size="10.00" fill="#000000"> hinting, depending on the target</text>
+<text text-anchor="start" x="645.16" y="-315" font-family="arial" font-size="10.00" fill="#000000"> platform.</text>
+</g>
+<!-- n26&#45;&gt;n6 -->
+<g id="edge31" class="edge">
+<title>n26&#45;&gt;n6</title>
+<path fill="none" stroke="#ff0000" d="M666,-406.36C666,-425.34 666,-446.95 666,-465.73"/>
+<polygon fill="#ff0000" stroke="#ff0000" points="662.5,-465.83 666,-475.83 669.5,-465.83 662.5,-465.83"/>
+</g>
+</g>
+</svg>
+</div></argdown-map></figure>
