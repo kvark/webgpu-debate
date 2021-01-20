@@ -6,6 +6,9 @@ Relevant issues:
   - https://github.com/gpuweb/gpuweb/issues/561 - offsets
   - https://github.com/gpuweb/gpuweb/issues/621 - layout
   - https://github.com/gpuweb/gpuweb/pull/1339 - spans
+Supplementary materials:
+  - https://github.com/microsoft/DirectXShaderCompiler/wiki/Buffer-Packing
+  - https://www.khronos.org/opengl/wiki/Interface_Block_(GLSL) (Memory Layout)
 
 Background:
 Uniform buffers have more strict alignment requirements than storage buffers.
@@ -42,6 +45,11 @@ You'd still need the offsets from both sides, and to compare them. --!>
   we can compute the layout of the fields.
   + <Easy validation>: once you see a structure with a concrete layout, it's clear
     whether this structure can be used in uniform or storage buffers.
+
+<!-- What about proliferation of different layout types, e.g. "relaxed" and "scalar"?
+My understanding is that if we add any of those, we'd still have to specify what requirements
+they have on spans/offsets, so the constraints are in place. The question becomes more of
+whether the constraints are explicit or implicit. --!>
 
 [Unified layout]: We should define one and only layout enforced in all host-shareable structs.
   - <Storage>: Storage buffers can use a more tight layout, and for many users this makes
