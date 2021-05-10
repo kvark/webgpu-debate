@@ -16,7 +16,7 @@ Relevant issues:
 [SPIR-V]: We should define a safe subset of SPIR-V and
 [accept it directly](https://github.com/gpuweb/gpuweb/issues/44) in WebGPU implementations.
 
-<SPIR-V is too low level>: SPIR-V is meant to be fed into drivers,
+<SPIR-V is too low level>: SPIR-V is meant to be fed into drivers, as well as processed by tools,
 while WebGPU needs to be able to generate HLSL and MSL, which are higher level.
 This makes some translation paths inefficient and awkward to implement.
   + it has a lot of instructions, some with [undefined behavior](https://github.com/gpuweb/gpuweb/issues/34).
@@ -69,6 +69,7 @@ that has a very detailed specification and a good conformance test suite.
   - SPIR-V isn't tested directly, but rather via GLSL
   - It's specified in 2 different documents: language itself and the execution environment.
     Sometimes it's not easy to figure out which of them is responsible for describing a particular behavior.
+    - WebGPU could compile both of these pieces together with the main specification
   + It has a memory model
     - WebGPU can borrow the memory model without taking the full SPIR-V
   +> [SPIR-V]
