@@ -1,0 +1,26 @@
+## Dead Code Analysis
+<!--
+What kind of errors may occur in dead code:
+  - https://github.com/gpuweb/gpuweb/issues/2378
+-->
+
+[Fully Approximate]: Let our analysis approximation to not
+be aware of code that can't be reached, but otherwise perform full analysis.
+  - <False Alarm>: will complain about cases that are safe and portable,
+    annoy some users.
+
+[Local-only]: We should still perform uniformity analysis
+on the dead code in isolation. The analysis shouldn't leak outside of the dead code.
+  - <Minor False Alarm>: may still complain about non-dangerous cases,
+    but less likely. In particular, if the user just inserts `return;` somewhere in
+    a valid program, it will not become invalid due to the code that follows.
+
+[Skip]: We should skip the behavioral and uniformity analysis of dead code.
+  + matches a hypothetical "ideal" analysis, which would not find any issues
+    in dead code because it's still safe and portable.
+
+[Skip Types]: Not only skip the uniformity, but also not do any type checking
+in dead code.
+  + <Analysis Consistency>: these are all kind of code analysis,
+    why separate one from the other?
+  - <Unexpected>: inconsistent with any other compiled language?
